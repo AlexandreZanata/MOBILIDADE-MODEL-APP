@@ -17,13 +17,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, AppStateStatus, Vibration, Platform } from 'react-native';
 import {
-  chatWebSocketService,
-  ChatServerMessage,
-  ChatMessageServer,
-  UnreadCountServer,
-  UserOnlineStatusServer,
-  DeliveryStatus,
-} from '@/services/chatWebSocketService';
+  chatWebSocket,
+  type ChatServerMessage,
+  type ChatMessageServer,
+  type ChatChatUnreadCountServer,
+  type ChatChatUserOnlineStatusServer,
+  type ChatChatDeliveryStatus,
+} from '@/services/websocket';
 import { apiService, ChatMessageData } from '@/services/api';
 import { useAuth } from './AuthContext';
 
@@ -99,7 +99,7 @@ export interface ChatMessage {
   senderId: string;
   recipientId: string;
   content: string;
-  deliveryStatus: DeliveryStatus;
+  deliveryStatus: ChatDeliveryStatus;
   deliveredAt?: string;
   readAt?: string;
   createdAt: string;
@@ -179,7 +179,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     currentRideIdRef.current = currentRideId;
     // Também atualiza no serviço de WebSocket
-    chatWebSocketService.setCurrentRideId(currentRideId);
+    chatWebSocket.setCurrentRideId(currentRideId);
     console.log('[ChatContext] 🔄 currentRideId atualizado:', currentRideId);
   }, [currentRideId]);
 
@@ -213,12 +213,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     console.log('[ChatContext] 🔌 Conectando ao WebSocket de chat...', { userType });
-    chatWebSocketService.connect(userType);
+    chatWebSocket.connectAs(userType);
   }, [isAuthenticated, userType]);
 
   const disconnectChat = useCallback(() => {
     console.log('[ChatContext] 🔌 Desconectando do WebSocket de chat...');
-    chatWebSocketService.disconnect();
+    chatWebSocket.disconnect();
     stopLongPolling();
   }, []);
 
@@ -228,11 +228,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     console.log('[ChatContext] 🔌 Inicializando conexão WebSocket...', { userType, userId: currentUserId });
-    chatWebSocketService.connect(userType);
+    chatWebSocket.connectAs(userType);
 
     // Configura callbacks
-    chatWebSocketService.setOnMessage(handleWebSocketMessage);
-    chatWebSocketService.setOnConnectionStateChange((connected) => {
+    chatWebSocket.setOnMessage(handleWebSocketMessage);
+    chatWebSocket.setOnConnectionStateChange((connected) => {
       console.log('[ChatContext] 📡 Estado da conexão:', connected);
       setChatState((prev) => ({ ...prev, isConnected: connected }));
       
@@ -254,9 +254,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       console.log('[ChatContext] 🔌 Cleanup: desconectando WebSocket...');
-      chatWebSocketService.disconnect();
-      chatWebSocketService.setOnMessage(null);
-      chatWebSocketService.setOnConnectionStateChange(null);
+      chatWebSocket.disconnect();
+      chatWebSocket.setOnMessage(null);
+      chatWebSocket.setOnConnectionStateChange(null);
       stopLongPolling();
     };
   }, [isAuthenticated, userType]);
@@ -269,9 +269,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         // App voltou ao foreground
-        if (isAuthenticated && userType && !chatWebSocketService.getIsConnected()) {
+        if (isAuthenticated && userType && !chatWebSocket.isConnected) {
           console.log('[ChatContext] 📱 App voltou ao foreground, reconectando...');
-          chatWebSocketService.connect(userType);
+          chatWebSocket.connectAs(userType);
         }
         
         // Atualiza contador de não lidas
@@ -297,7 +297,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('[ChatContext] 🔄 Iniciando long polling para rideId:', rideId);
     longPollingActive.current = true;
     
-    while (longPollingActive.current && !chatWebSocketService.getIsConnected()) {
+    while (longPollingActive.current && !chatWebSocket.isConnected) {
       try {
         const response = await apiService.pollChatMessages(rideId, 30, longPollingCursor.current);
         
@@ -447,7 +447,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUserId, isChatOpen]);
 
   // Atualização de contador de não lidas
-  const handleUnreadCount = useCallback((message: UnreadCountServer) => {
+  const handleUnreadCount = useCallback((message: ChatUnreadCountServer) => {
     setChatState((prev) => ({
       ...prev,
       unreadCount: message.data.unreadCount,
@@ -455,7 +455,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Atualização de status online
-  const handleOnlineStatus = useCallback((message: UserOnlineStatusServer) => {
+  const handleOnlineStatus = useCallback((message: ChatUserOnlineStatusServer) => {
     console.log('[ChatContext] 👤 Status online atualizado:', {
       userId: message.data.userId,
       isOnline: message.data.isOnline,
@@ -639,7 +639,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Define o rideId ANTES de abrir o chat
     setCurrentRideId(trimmedRideId);
     currentRideIdRef.current = trimmedRideId; // Atualiza ref imediatamente
-    chatWebSocketService.setCurrentRideId(trimmedRideId);
+    chatWebSocket.setCurrentRideId(trimmedRideId);
     
     setIsChatOpen(true);
 
@@ -745,7 +745,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rideStatus,
       isChatAvailable,
       contentLength: content?.length,
-      wsConnected: chatWebSocketService.getIsConnected(),
+      wsConnected: chatWebSocket.isConnected,
     });
 
     if (!rideId || rideId.trim() === '') {
@@ -869,7 +869,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Envia via WebSocket
-    const wsSuccess = chatWebSocketService.markAsRead(trimmedRideId, messageIds);
+    const wsSuccess = chatWebSocket.markAsRead(trimmedRideId, messageIds);
     if (!wsSuccess) {
       console.warn('[ChatContext] ⚠️ Falha ao enviar marcação de lida via WebSocket');
     }

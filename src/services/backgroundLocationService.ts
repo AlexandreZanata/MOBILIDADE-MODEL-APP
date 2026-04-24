@@ -6,8 +6,7 @@
 
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
-import { websocketService } from './websocketService';
-import { passengerWebSocketService } from './passengerWebSocketService';
+import { driverWebSocket, passengerWebSocket } from '@/services/websocket';
 
 // Nome da tarefa de background para motoristas
 const DRIVER_LOCATION_TASK = 'driver-location-update';
@@ -80,7 +79,7 @@ TaskManager.defineTask(DRIVER_LOCATION_TASK, async ({ data, error }) => {
         ) >= MIN_DISTANCE_THRESHOLD ||
         Date.now() - lastDriverLocation.timestamp >= LOCATION_UPDATE_INTERVAL;
 
-      if (shouldSend && websocketService.getIsConnected()) {
+      if (shouldSend && driverWebSocket.isConnected) {
         try {
           const heading =
             location.coords.heading !== null && location.coords.heading !== undefined
@@ -88,12 +87,10 @@ TaskManager.defineTask(DRIVER_LOCATION_TASK, async ({ data, error }) => {
               : undefined;
           const speed =
             location.coords.speed !== null && location.coords.speed !== undefined
-              ? location.coords.speed * 3.6 // Converte m/s para km/h
+              ? location.coords.speed * 3.6
               : undefined;
 
-          // Envia via WebSocket (mesma lógica que já existe)
-          websocketService.sendLocationUpdate({
-            type: 'location_update',
+          driverWebSocket.sendLocationUpdate({
             lat: newLocation.lat,
             lng: newLocation.lng,
             heading,
@@ -145,7 +142,7 @@ TaskManager.defineTask(PASSENGER_LOCATION_TASK, async ({ data, error }) => {
         ) >= MIN_DISTANCE_THRESHOLD ||
         Date.now() - lastPassengerLocation.timestamp >= LOCATION_UPDATE_INTERVAL;
 
-      if (shouldSend && passengerWebSocketService.getIsConnected()) {
+      if (shouldSend && passengerWebSocket.isConnected) {
         try {
           const heading =
             location.coords.heading !== null && location.coords.heading !== undefined
@@ -153,12 +150,10 @@ TaskManager.defineTask(PASSENGER_LOCATION_TASK, async ({ data, error }) => {
               : undefined;
           const speed =
             location.coords.speed !== null && location.coords.speed !== undefined
-              ? location.coords.speed * 3.6 // Converte m/s para km/h
+              ? location.coords.speed * 3.6
               : undefined;
 
-          // Envia via WebSocket (mesma lógica que já existe)
-          passengerWebSocketService.sendLocationUpdate({
-            type: 'location_update',
+          passengerWebSocket.sendLocationUpdate({
             lat: newLocation.lat,
             lng: newLocation.lng,
             heading,

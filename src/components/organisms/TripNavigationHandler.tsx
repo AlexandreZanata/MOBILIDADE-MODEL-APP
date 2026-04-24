@@ -8,7 +8,7 @@ import {useNavigation} from '@react-navigation/native';
 import {AppState, AppStateStatus} from 'react-native';
 import {useTrip} from '@/context/TripContext';
 import {useAuth} from '@/context/AuthContext';
-import {TripStatus} from '@/services/websocketService';
+import { TripStatus } from '@/services/websocket';
 
 interface TripNavigationHandlerProps {
   children: React.ReactNode;

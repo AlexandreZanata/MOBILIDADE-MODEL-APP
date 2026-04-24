@@ -13,7 +13,7 @@ import {useTheme} from '@/context/ThemeContext';
 import {useAuth} from '@/context/AuthContext';
 import {apiService, PaymentMethodResponse, CardBrandResponse} from '@/services/api';
 import {useTokenRefresh} from '@/hooks/useTokenRefresh';
-import {websocketService, ServerMessage} from '@/services/websocketService';
+import { driverWebSocket, type DriverServerMessage } from '@/services/websocket';
 import { sendLocalNotification } from '@/services/notificationService';
 import {useTrip} from '@/context/TripContext';
 import {DriverTripRequestScreen} from './DriverTripRequestScreen';
@@ -585,11 +585,11 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
       setPendingTrip(null);
       setPassengerLocation(null);
 
-      // Informa o backend para seguir para o próximo motorista
+      // Inform backend to move to next driver
       try {
-        websocketService.respondToRideOffer(pendingTrip.trip_id, 'reject');
+        driverWebSocket.respondToRideOffer(pendingTrip.trip_id, 'reject');
       } catch (err) {
-        console.error('[DriverHome] Erro ao enviar reject por expiração:', err);
+        console.error('[DriverHome] Error sending reject on expiry:', err);
       }
     };
 
@@ -608,7 +608,7 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
   useEffect(() => {
     console.log('[DriverHome] Componente montado - registrando callback do WebSocket IMEDIATAMENTE');
     
-    const handleWebSocketMessage = (message: ServerMessage) => {
+    const handleWebSocketMessage = (message: DriverServerMessage) => {
       console.log('[DriverHome] Mensagem WebSocket recebida:', message);
 
       // Trata oferta de corrida (novo formato do WebSocket)
@@ -846,16 +846,14 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
       }
     };
 
-    // Registra o callback uma vez (não precisa reconfigurar periodicamente)
-    // O problema de callbacks duplicados era causado pelo setInterval que foi removido
-    websocketService.setOnMessage(handleWebSocketMessage);
+    // Register callback once
+    driverWebSocket.setOnMessage(handleWebSocketMessage);
     
-    // Cleanup
     return () => {
-      console.log('[DriverHome] Componente desmontando - removendo callback');
-      websocketService.removeOnMessage(handleWebSocketMessage);
+      console.log('[DriverHome] Unmounting — removing WebSocket callback.');
+      driverWebSocket.removeOnMessage(handleWebSocketMessage);
     };
-  }, [navigation]); // Executa apenas uma vez quando o componente monta
+  }, [navigation]);
 
   // Atualiza localização quando disponibilidade muda
   useEffect(() => {
@@ -1196,26 +1194,24 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
           setIsRateLimited(false);
         }
         
-        // Envia localização via WebSocket se conectado (envio automático contínuo)
-        if (isWebSocketConnected && websocketService.getIsConnected() && isAvailable) {
+        // Send location via WebSocket if connected (continuous auto-send)
+        if (isWebSocketConnected && driverWebSocket.isConnected && isAvailable) {
           try {
-            // Obtém heading e speed se disponíveis
             const heading = location.coords.heading !== null && location.coords.heading !== undefined
               ? location.coords.heading
               : undefined;
             const speed = location.coords.speed !== null && location.coords.speed !== undefined
-              ? location.coords.speed * 3.6 // Converte m/s para km/h
+              ? location.coords.speed * 3.6
               : undefined;
             
-            websocketService.sendLocationUpdate({
-              type: 'location_update',
+            driverWebSocket.sendLocationUpdate({
               lat: newLocation.lat,
               lng: newLocation.lon,
               heading,
               speed,
             });
           } catch (error) {
-            console.error('[DriverHome] Erro ao enviar localização via WebSocket:', error);
+            console.error('[DriverHome] Error sending location via WebSocket:', error);
           }
         }
       } catch (error: any) {
@@ -1483,54 +1479,46 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
                 // Aguarda um pouco para garantir que a conexão foi estabelecida
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                // Envia localização inicial imediatamente após conectar
-                if (websocketService.getIsConnected()) {
+                // Send initial location immediately after connecting
+                if (driverWebSocket.isConnected) {
                   try {
-                    websocketService.sendLocationUpdate({
-                      type: 'location_update',
+                    driverWebSocket.sendLocationUpdate({
                       lat: currentLocation.lat,
                       lng: currentLocation.lon,
-                      heading: undefined, // Pode ser obtido se disponível
-                      speed: undefined, // Pode ser obtido se disponível
                     });
-                    console.log('[DriverHome] Localização inicial enviada via WebSocket');
+                    console.log('[DriverHome] Initial location sent via WebSocket.');
                   } catch (error) {
-                    console.error('[DriverHome] Erro ao enviar localização via WebSocket:', error);
+                    console.error('[DriverHome] Error sending initial location:', error);
                   }
                 }
 
-                // Inicia background location tracking para motorista disponível
-                // Isso permite receber notificações de novas corridas mesmo em segundo plano
                 try {
                   await startDriverBackgroundLocation();
-                  console.log('[DriverHome] Background location iniciado para motorista disponível');
+                  console.log('[DriverHome] Background location started.');
                 } catch (error) {
-                  console.error('[DriverHome] Erro ao iniciar background location:', error);
-                  // Não bloqueia o fluxo se background location falhar
+                  console.error('[DriverHome] Background location start error:', error);
                 }
               } catch (error) {
-                console.error('[DriverHome] Erro ao conectar WebSocket:', error);
+                console.error('[DriverHome] WebSocket connection error:', error);
                 setApiError('Erro ao conectar ao servidor. Tente novamente.');
               }
-            } else if (isWebSocketConnected && websocketService.getIsConnected()) {
-              // Se já está conectado, apenas envia localização inicial
+            } else if (isWebSocketConnected && driverWebSocket.isConnected) {
+              // Already connected — just send initial location
               try {
-                websocketService.sendLocationUpdate({
-                  type: 'location_update',
+                driverWebSocket.sendLocationUpdate({
                   lat: currentLocation.lat,
                   lng: currentLocation.lon,
                 });
-                console.log('[DriverHome] Localização inicial enviada via WebSocket (já conectado)');
+                console.log('[DriverHome] Initial location sent (already connected).');
               } catch (error) {
-                console.error('[DriverHome] Erro ao enviar localização via WebSocket:', error);
+                console.error('[DriverHome] Error sending initial location:', error);
               }
 
-              // Inicia background location se ainda não estiver ativo
               try {
                 await startDriverBackgroundLocation();
-                console.log('[DriverHome] Background location iniciado para motorista disponível (já conectado)');
+                console.log('[DriverHome] Background location started (already connected).');
               } catch (error) {
-                console.error('[DriverHome] Erro ao iniciar background location:', error);
+                console.error('[DriverHome] Background location start error:', error);
               }
             }
           } else {
@@ -1558,9 +1546,8 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
                 await connectWebSocket();
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
-                if (websocketService.getIsConnected()) {
-                  websocketService.sendLocationUpdate({
-                    type: 'location_update',
+                if (driverWebSocket.isConnected) {
+                  driverWebSocket.sendLocationUpdate({
                     lat: newLocation.lat,
                     lng: newLocation.lon,
                   });
@@ -1679,8 +1666,8 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
   const handleAcceptTrip = () => {
     if (!pendingTrip) return;
 
-    // Verifica se WebSocket está conectado
-    if (!websocketService.getIsConnected()) {
+    // Check WebSocket connection
+    if (!driverWebSocket.isConnected) {
       Alert.alert(
         'Erro de Conexão',
         'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.'
@@ -1688,15 +1675,8 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
       return;
     }
 
-    console.log('[DriverHome] Enviando aceite de corrida via WebSocket:', pendingTrip.trip_id);
-    
-    // Envia resposta via WebSocket conforme documentação WebSocket_cliente.txt
-    // Formato: { "type": "ride_response", "rideId": "...", "action": "accept" }
-    websocketService.respondToRideOffer(pendingTrip.trip_id, 'accept');
-    
-    // A confirmação será recebida via WebSocket (mensagem tipo "ride_accepted")
-    // O estado será atualizado automaticamente pelo handler de mensagens WebSocket
-    // Não precisa fazer nada mais aqui - o modal será fechado quando receber a confirmação
+    console.log('[DriverHome] Sending ride accept via WebSocket:', pendingTrip.trip_id);
+    driverWebSocket.respondToRideOffer(pendingTrip.trip_id, 'accept');
   };
 
   const handleRejectTrip = () => {
@@ -1709,12 +1689,12 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
     setPendingTrip(null);
     setPassengerLocation(null);
     
-    // Rejeita via WebSocket se conectado
-    if (tripIdToReject && websocketService.getIsConnected()) {
-      console.log('[DriverHome] Enviando recusa via WebSocket para rideId:', tripIdToReject);
-      websocketService.respondToRideOffer(tripIdToReject, 'reject');
+    // Reject via WebSocket if connected
+    if (tripIdToReject && driverWebSocket.isConnected) {
+      console.log('[DriverHome] Sending reject via WebSocket for rideId:', tripIdToReject);
+      driverWebSocket.respondToRideOffer(tripIdToReject, 'reject');
     } else {
-      console.warn('[DriverHome] WebSocket não conectado ou sem pendingTrip, não é possível enviar recusa via WebSocket');
+      console.warn('[DriverHome] WebSocket not connected or no pending trip — reject not sent.');
     }
   };
 
@@ -1726,9 +1706,9 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
     setPendingTrip(null);
     setPassengerLocation(null);
     try {
-      websocketService.respondToRideOffer(tripId, 'reject');
+      driverWebSocket.respondToRideOffer(tripId, 'reject');
     } catch (err) {
-      console.error('[DriverHome] Erro ao enviar reject após timeout:', err);
+      console.error('[DriverHome] Error sending reject on timeout:', err);
     }
   };
 

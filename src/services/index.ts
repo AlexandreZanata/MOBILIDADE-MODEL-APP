@@ -5,14 +5,19 @@
 // API principal
 export { apiService, type ApiResponse, type AuthResponse, type LoginRequest } from './api';
 
-// WebSocket para eventos em tempo real
-export { 
-  websocketService,
-  type TripStatus,
-  type TripAssignedPayload,
-  type TripStatusChangedPayload,
-  type DriverLocationUpdatePayload,
-} from './websocketService';
+// WebSocket clients (new modular structure)
+export {
+  driverWebSocket,
+  passengerWebSocket,
+  chatWebSocket,
+} from './websocket';
+export type {
+  DriverServerMessage,
+  DriverRideOfferMessage,
+  DriverActiveRideMessage,
+  PassengerServerMessage,
+  ChatServerMessage,
+} from './websocket';
 
 // Gerenciamento de veículos
 export { 

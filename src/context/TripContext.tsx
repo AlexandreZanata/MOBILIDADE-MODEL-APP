@@ -10,13 +10,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiService } from '@/services/api';
 import { tripsService } from '@/services/tripsService';
 import {
-  websocketService,
-  TripAssignedPayload,
-  TripStatusChangedPayload,
-  TripStatus,
-  DriverLocationUpdatePayload,
-  ServerMessage,
-} from '@/services/websocketService';
+  driverWebSocket,
+  type DriverServerMessage,
+  type DriverActiveRideMessage,
+  type TripStatus,
+  type TripAssignedPayload,
+  type TripStatusChangedPayload,
+  type DriverLocationUpdatePayload,
+} from '@/services/websocket';
 import {
   startDriverBackgroundLocation,
   stopDriverBackgroundLocation,
@@ -670,7 +671,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Trata mensagem active_ride (corrida ativa após reconexão)
     if (message.type === 'active_ride') {
-      const activeRideMessage = message as import('@/services/websocketService').ActiveRideMessage;
+      const activeRideMessage = message as DriverActiveRideMessage;
       console.log('[TripContext] Corrida ativa recebida após reconexão:', activeRideMessage);
       
       // Verifica se a corrida não foi cancelada
@@ -741,12 +742,12 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Configura callbacks
-    websocketService.setOnMessage(handleWebSocketMessage);
-    websocketService.setOnConnectionStateChange(handleConnectionStateChange);
-    websocketService.setOnError(handleWebSocketError);
+    driverWebSocket.setOnMessage(handleWebSocketMessage);
+    driverWebSocket.setOnConnectionStateChange(handleConnectionStateChange);
+    driverWebSocket.setOnError(handleWebSocketError);
 
     // Conecta (não precisa mais passar userId e userType)
-    const success = await websocketService.connect();
+    const success = await driverWebSocket.connect();
     setIsWebSocketConnected(success);
     return success;
   }, [user?.userId, isAuthenticated, userType, handleWebSocketMessage, handleConnectionStateChange, handleWebSocketError]);
@@ -754,7 +755,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Desconecta do WebSocket
   const disconnectWebSocket = useCallback(() => {
     if (userType === 'driver') {
-      websocketService.disconnect();
+      driverWebSocket.disconnect();
     }
     setIsWebSocketConnected(false);
   }, [userType]);

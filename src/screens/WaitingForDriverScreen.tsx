@@ -26,7 +26,7 @@ import { spacing, shadows, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { apiService } from '@/services/api';
-import { passengerWebSocketService } from '@/services/passengerWebSocketService';
+import { passengerWebSocket } from '@/services/websocket';
 import { useTrip } from '@/context/TripContext';
 import { ChatWindow } from '@/components/organisms/ChatWindow';
 import { useChat } from '@/context/ChatContext';
@@ -220,10 +220,8 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
                 updateRideStatus('CANCELLED');
                 setIsSearching(false);
                 
-                // Desconecta WebSocket
-                passengerWebSocketService.disconnect();
+                passengerWebSocket.disconnect();
                 
-                // Navega para a tela inicial (Main)
                 navigation.navigate('Main');
               } else {
                 Alert.alert(
@@ -1183,12 +1181,12 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
           }
         }, 5000);
         
-        // Configura callbacks
-        passengerWebSocketService.setOnMessage(async (message) => {
-          console.log('[WaitingForDriver] Mensagem WebSocket recebida:', message);
-          hasReceivedWebSocketData = true; // Marca que recebeu dados do websocket
+        // Register message callback
+        passengerWebSocket.setOnMessage(async (message) => {
+          console.log('[WaitingForDriver] WebSocket message received:', message);
+          hasReceivedWebSocketData = true;
           
-          // Cancela o fallback se recebeu dados
+          // Cancel fallback if we received data
           if (fallbackTimeout) {
             clearTimeout(fallbackTimeout);
             fallbackTimeout = null;
@@ -1617,12 +1615,12 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
           }
         });
 
-        passengerWebSocketService.setOnConnectionStateChange((connected) => {
-          console.log('[WaitingForDriver] Estado de conexão WebSocket:', connected);
+        passengerWebSocket.setOnConnectionStateChange((connected) => {
+          console.log('[WaitingForDriver] WebSocket connection state:', connected);
         });
 
-        passengerWebSocketService.setOnError((error) => {
-          console.error('[WaitingForDriver] Erro no WebSocket:', error);
+        passengerWebSocket.setOnError((error) => {
+          console.error('[WaitingForDriver] WebSocket error:', error);
         });
 
         // Busca localização atual antes de conectar WebSocket
@@ -1651,10 +1649,9 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
         }
         
         // Conecta ao WebSocket (mesmo com destino inválido)
-        const connected = await passengerWebSocketService.connect();
+        const connected = await passengerWebSocket.connect();
         if (connected) {
-          console.log('[WaitingForDriver] WebSocket conectado com sucesso');
-          // Inicia envio de localização (já obtém localização atual a cada 3 segundos)
+          console.log('[WaitingForDriver] WebSocket connected.');
           startPassengerLocationUpdates();
           
           // ✅ GARANTE que localização do motorista sempre apareça após conectar
@@ -1675,12 +1672,12 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
 
     // Cleanup ao desmontar
     return () => {
-      console.log('[WaitingForDriver] Desconectando WebSocket do passageiro...');
+      console.log('[WaitingForDriver] Disconnecting passenger WebSocket...');
       if (fallbackTimeout) {
         clearTimeout(fallbackTimeout);
       }
       stopPassengerLocationUpdates();
-      passengerWebSocketService.disconnect();
+      passengerWebSocket.disconnect();
     };
   }, [tripId]);
 
@@ -1690,14 +1687,13 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
       clearInterval(locationUpdateIntervalRef.current);
     }
 
-    // Função para enviar localização atual
+    // Send current location to the server
     const sendLocationUpdate = async () => {
-      if (!passengerWebSocketService.getIsConnected()) {
+      if (!passengerWebSocket.isConnected) {
         return;
       }
 
       try {
-        // Obtém localização atual
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
         });
@@ -1707,27 +1703,24 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
           lon: location.coords.longitude,
         };
 
-        // Atualiza localização local (sem centralizar automaticamente)
         setCurrentPassengerLocation(newLocation);
         setUserLocation(newLocation);
         setMapCenter(newLocation);
 
-        // Envia via WebSocket
-        passengerWebSocketService.sendLocationUpdate({
-          type: 'location_update',
+        passengerWebSocket.sendLocationUpdate({
           lat: newLocation.lat,
           lng: newLocation.lon,
           heading: location.coords.heading !== null && location.coords.heading !== undefined
             ? location.coords.heading
             : undefined,
           speed: location.coords.speed !== null && location.coords.speed !== undefined
-            ? location.coords.speed * 3.6 // Converte m/s para km/h
+            ? location.coords.speed * 3.6
             : undefined,
         });
 
-        console.log('[WaitingForDriver] Localização enviada via WebSocket:', newLocation);
+        console.log('[WaitingForDriver] Location sent via WebSocket:', newLocation);
       } catch (error) {
-        console.error('[WaitingForDriver] Erro ao obter/enviar localização:', error);
+        console.error('[WaitingForDriver] Error sending location:', error);
       }
     };
     

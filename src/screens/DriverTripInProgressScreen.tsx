@@ -26,7 +26,7 @@ import { spacing, typography, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { apiService } from '@/services/api';
-import { websocketService } from '@/services/websocketService';
+import { driverWebSocket } from '@/services/websocket';
 import { reverseGeocode } from '@/services/placesService';
 import { ChatWindow } from '@/components/organisms/ChatWindow';
 import { useChat } from '@/context/ChatContext';
@@ -333,10 +333,9 @@ export const DriverTripInProgressScreen: React.FC<DriverTripInProgressScreenProp
 
       setDriverLocation(newLocation);
       
-      // Envia localização via WebSocket apenas se estiver conectado
-      if (websocketService.getIsConnected()) {
-        websocketService.sendLocationUpdate({
-          type: 'location_update',
+      // Send location via WebSocket only if connected
+      if (driverWebSocket.isConnected) {
+        driverWebSocket.sendLocationUpdate({
           lat: newLocation.lat,
           lng: newLocation.lon,
           heading: location.coords.heading !== null && location.coords.heading !== undefined
@@ -347,7 +346,7 @@ export const DriverTripInProgressScreen: React.FC<DriverTripInProgressScreenProp
             : undefined,
         });
       } else {
-        console.warn('[DriverTrip] WebSocket não conectado, não é possível enviar localização');
+        console.warn('[DriverTrip] WebSocket not connected — location not sent.');
       }
 
       // Gera rota se tiver localização do passageiro
@@ -417,22 +416,22 @@ export const DriverTripInProgressScreen: React.FC<DriverTripInProgressScreenProp
       return;
     }
 
-    // Garante que o WebSocket está conectado
+    // Ensure WebSocket is connected
     const ensureWebSocketConnected = async () => {
-      if (!websocketService.getIsConnected()) {
-        console.log('[DriverTrip] WebSocket não conectado, tentando conectar...');
-        const connected = await websocketService.connect();
+      if (!driverWebSocket.isConnected) {
+        console.log('[DriverTrip] WebSocket not connected — attempting to connect...');
+        const connected = await driverWebSocket.connect();
         if (connected) {
-          console.log('[DriverTrip] WebSocket conectado com sucesso');
+          console.log('[DriverTrip] WebSocket connected.');
         } else {
-          console.error('[DriverTrip] Falha ao conectar WebSocket');
+          console.error('[DriverTrip] WebSocket connection failed.');
         }
       }
     };
 
     ensureWebSocketConnected();
 
-    // Configura callback para receber localização do passageiro
+    // Receive passenger location updates
     const handleWebSocketMessage = (message: any) => {
       if (message.type === 'passenger_location' && message.rideId === tripId) {
         const newPassengerLocation = {
@@ -441,36 +440,31 @@ export const DriverTripInProgressScreen: React.FC<DriverTripInProgressScreenProp
         };
         setPassengerLocation(newPassengerLocation);
         
-        // Gera rota se tiver localização do motorista e coordenadas válidas
         if (driverLocation && newPassengerLocation.lat !== 0 && newPassengerLocation.lon !== 0) {
           generateRouteFromDriverToPassenger(driverLocation, newPassengerLocation);
         }
       }
     };
 
-    // Usa setOnMessage que adiciona o callback à lista
-    websocketService.setOnMessage(handleWebSocketMessage);
+    driverWebSocket.setOnMessage(handleWebSocketMessage);
 
-    // Inicia atualizações de localização do motorista apenas uma vez
+    // Start driver location updates once
     if (!isLocationUpdateActiveRef.current) {
       isLocationUpdateActiveRef.current = true;
       startDriverLocationUpdates();
       
-      // Inicia background location tracking para continuar enviando localização em segundo plano
       startDriverBackgroundLocation().catch((error) => {
-        console.error('[DriverTrip] Erro ao iniciar background location:', error);
-        // Continua com atualizações normais mesmo se background location falhar
+        console.error('[DriverTrip] Background location start error:', error);
       });
     }
 
     return () => {
-      websocketService.removeOnMessage(handleWebSocketMessage);
+      driverWebSocket.removeOnMessage(handleWebSocketMessage);
       stopDriverLocationUpdates();
       isLocationUpdateActiveRef.current = false;
       
-      // Para background location quando sai da tela
       stopDriverBackgroundLocation().catch((error) => {
-        console.error('[DriverTrip] Erro ao parar background location:', error);
+        console.error('[DriverTrip] Background location stop error:', error);
       });
     };
   }, [tripId]);
