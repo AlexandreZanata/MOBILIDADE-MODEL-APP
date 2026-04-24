@@ -10,15 +10,15 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card } from '@/components/Card';
-import Button from '@/components/Button';
-import { Avatar } from '@/components/Avatar';
+import { Card } from '@/components/atoms/Card';
+import Button from '@/components/atoms/Button';
+import { Avatar } from '@/components/atoms/Avatar';
 import { spacing, typography, borders, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { apiService } from '@/services/api';
 import { reverseGeocode as placesReverseGeocode, getCachedAddress } from '@/services/placesService';
-import { StarRatingBadge } from '@/components/StarRating';
+import { StarRatingBadge } from '@/components/atoms/StarRating';
 
 interface TripData {
   trip_id: string;

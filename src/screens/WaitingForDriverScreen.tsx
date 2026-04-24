@@ -18,19 +18,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import Button from '@/components/Button';
-import { Card } from '@/components/Card';
-import { Avatar } from '@/components/Avatar';
-import { TileMap, TileMapRef, RoutePoint } from '@/components/TileMap';
+import Button from '@/components/atoms/Button';
+import { Card } from '@/components/atoms/Card';
+import { Avatar } from '@/components/atoms/Avatar';
+import { TileMap, TileMapRef, RoutePoint } from '@/components/molecules/TileMap';
 import { spacing, shadows, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { apiService } from '@/services/api';
 import { passengerWebSocketService } from '@/services/passengerWebSocketService';
 import { useTrip } from '@/context/TripContext';
-import { ChatWindow } from '@/components/ChatWindow';
+import { ChatWindow } from '@/components/organisms/ChatWindow';
 import { useChat } from '@/context/ChatContext';
-import { StarRating } from '@/components/StarRating';
+import { StarRating } from '@/components/atoms/StarRating';
 import {
   startPassengerBackgroundLocation,
   stopPassengerBackgroundLocation,

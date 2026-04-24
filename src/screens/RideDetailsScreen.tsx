@@ -9,9 +9,9 @@ import {
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card } from '@/components/Card';
-import { Avatar } from '@/components/Avatar';
-import { StarRatingBadge } from '@/components/StarRating';
+import { Card } from '@/components/atoms/Card';
+import { Avatar } from '@/components/atoms/Avatar';
+import { StarRatingBadge } from '@/components/atoms/StarRating';
 import { spacing, typography, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

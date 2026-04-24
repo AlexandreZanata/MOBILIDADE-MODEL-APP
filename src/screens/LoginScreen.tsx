@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FloatingLabelInput } from '@/components/FloatingLabelInput';
-import Button from '@/components/Button';
+import { FloatingLabelInput } from '@/components/molecules/FloatingLabelInput';
+import Button from '@/components/atoms/Button';
 import { spacing, typography, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

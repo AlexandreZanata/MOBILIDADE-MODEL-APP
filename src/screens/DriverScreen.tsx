@@ -6,13 +6,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Button from '@/components/Button';
-import { Card } from '@/components/Card';
-import { Avatar } from '@/components/Avatar';
+import Button from '@/components/atoms/Button';
+import { Card } from '@/components/atoms/Card';
+import { Avatar } from '@/components/atoms/Avatar';
 import { spacing, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import { StarRating } from '@/components/StarRating';
+import { StarRating } from '@/components/atoms/StarRating';
 
 interface DriverScreenProps {
   navigation: any;

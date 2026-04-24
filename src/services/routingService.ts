@@ -4,7 +4,7 @@
  */
 
 import { apiService, ApiResponse } from './api';
-import { RoutePoint } from '@/components/TileMap';
+import { RoutePoint } from '@/components/molecules/TileMap';
 
 export interface RouteResponse {
   distanceMeters: number;

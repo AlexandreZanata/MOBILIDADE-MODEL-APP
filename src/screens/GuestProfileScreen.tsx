@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card } from '@/components/Card';
+import { Card } from '@/components/atoms/Card';
 import { spacing, typography, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import Button from '@/components/Button';
+import Button from '@/components/atoms/Button';
 
 interface GuestProfileScreenProps {
   navigation: any;

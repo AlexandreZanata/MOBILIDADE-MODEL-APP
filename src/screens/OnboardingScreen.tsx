@@ -5,7 +5,7 @@ import {
   StyleSheet,
 
 } from 'react-native';
-import Button from '@/components/Button';
+import Button from '@/components/atoms/Button';
 import { spacing, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

@@ -8,8 +8,8 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Button from '@/components/Button';
-import { Card } from '@/components/Card';
+import Button from '@/components/atoms/Button';
+import { Card } from '@/components/atoms/Card';
 import { spacing, typography, borders } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

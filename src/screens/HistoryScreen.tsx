@@ -11,7 +11,7 @@ import { spacing, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
-import Button from '@/components/Button';
+import Button from '@/components/atoms/Button';
 
 interface HistoryScreenProps {
   navigation: any;

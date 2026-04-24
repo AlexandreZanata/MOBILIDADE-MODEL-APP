@@ -11,9 +11,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Card } from '@/components/Card';
-import { Avatar } from '@/components/Avatar';
-import Button from '@/components/Button';
+import { Card } from '@/components/atoms/Card';
+import { Avatar } from '@/components/atoms/Avatar';
+import Button from '@/components/atoms/Button';
 import { spacing, typography, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

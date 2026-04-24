@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Card } from '@/components/Card';
+import { Card } from '@/components/atoms/Card';
 import { spacing, typography } from '@/theme';
 import { useTheme } from '@/context/ThemeContext';
 

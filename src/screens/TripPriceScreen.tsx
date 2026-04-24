@@ -11,8 +11,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Button from '@/components/Button';
-import { Card } from '@/components/Card';
+import Button from '@/components/atoms/Button';
+import { Card } from '@/components/atoms/Card';
 import { spacing, typography } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';

@@ -12,14 +12,14 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { launchImageLibrary, launchCamera, ImagePickerResponse, MediaType, PhotoQuality } from 'react-native-image-picker';
-import { Card } from '@/components/Card';
-import { ProfilePhotoPicker } from '@/components/ProfilePhotoPicker';
+import { Card } from '@/components/atoms/Card';
+import { ProfilePhotoPicker } from '@/components/organisms/ProfilePhotoPicker';
 import { spacing, typography, borders, shadows } from '@/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { apiService, API_BASE_URL } from '@/services/api';
-import { StarRatingBadge } from '@/components/StarRating';
+import { StarRatingBadge } from '@/components/atoms/StarRating';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { getProfileImageUrl } from '@/services/profileImageCache';
 import { requestMediaLibraryPermission, requestCameraPermission, openAppSettings } from '@/services/permissionsService';

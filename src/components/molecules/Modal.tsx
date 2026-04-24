@@ -8,7 +8,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { colors, spacing, borders, shadows, typography } from '@/theme';
-import Button from './Button';
+import Button from '../atoms/Button';
 
 interface ModalProps {
   visible: boolean;
