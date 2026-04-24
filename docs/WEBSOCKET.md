@@ -1,58 +1,58 @@
-# Documentação WebSocket - Sistema de Rastreamento e Notificações em Tempo Real
+# WebSocket Documentation - Real-Time Tracking and Notification System
 
-## Visão Geral
+## Overview
 
-O sistema de WebSocket permite comunicação bidirecional em tempo real entre:
-- **Motoristas**: Enviam localização, recebem ofertas de corrida e respondem a elas
-- **Passageiros**: Recebem notificações sobre o status de suas corridas
+The WebSocket system enables real-time bidirectional communication between:
+- **Drivers**: Send location updates, receive ride offers, and respond to offers
+- **Passengers**: Receive ride status notifications in real time
 
-O sistema utiliza Redis GEO para armazenar posições, H3 para indexação espacial e WebSocket para comunicação em tempo real.
+The system uses Redis GEO to store positions, H3 for spatial indexing, and WebSocket for realtime communication.
 
 ## Endpoints
 
-### Motoristas
+### Drivers
 
 ```
 ws://host:port/ws/drivers?token=<JWT_TOKEN>
 ```
 
-**Autenticação:**
-- **Método**: Query Parameter
-- **Parâmetro**: `token`
-- **Tipo**: JWT Access Token
-- **Requisito**: Token válido com role `driver`
+**Authentication:**
+- **Method**: Query parameter
+- **Parameter**: `token`
+- **Type**: JWT access token
+- **Requirement**: Valid token with role `driver`
 
-**Exemplo:**
+**Example:**
 ```javascript
 const token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...";
 const ws = new WebSocket(`ws://localhost:8080/ws/drivers?token=${token}`);
 ```
 
-### Passageiros
+### Passengers
 
 ```
 ws://host:port/ws/passengers?token=<JWT_TOKEN>
 ```
 
-**Autenticação:**
-- **Método**: Query Parameter
-- **Parâmetro**: `token`
-- **Tipo**: JWT Access Token
-- **Requisito**: Token válido com role `passenger`
+**Authentication:**
+- **Method**: Query parameter
+- **Parameter**: `token`
+- **Type**: JWT access token
+- **Requirement**: Valid token with role `passenger`
 
-**Exemplo:**
+**Example:**
 ```javascript
 const token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...";
 const ws = new WebSocket(`ws://localhost:8080/ws/passengers?token=${token}`);
 ```
 
-## Mensagens Enviadas pelo Cliente
+## Client-to-Server Messages
 
-### 1. Atualização de Localização
+### 1. Location Update
 
-Envia a posição atual do motorista. Deve ser enviada a cada 2-5 segundos.
+Sends the driver's current position. It should be sent every 2-5 seconds.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "location_update",
@@ -63,55 +63,55 @@ Envia a posição atual do motorista. Deve ser enviada a cada 2-5 segundos.
 }
 ```
 
-**Campos:**
-- `type` (string, obrigatório): Sempre `"location_update"`
-- `lat` (number, obrigatório): Latitude em graus decimais (-90 a 90)
-- `lng` (number, obrigatório): Longitude em graus decimais (-180 a 180)
-- `heading` (number, opcional): Direção em graus (0-360)
-- `speed` (number, opcional): Velocidade em km/h
+**Fields:**
+- `type` (string, required): Always `"location_update"`
+- `lat` (number, required): Latitude in decimal degrees (-90 to 90)
+- `lng` (number, required): Longitude in decimal degrees (-180 to 180)
+- `heading` (number, optional): Direction in degrees (0-360)
+- `speed` (number, optional): Speed in km/h
 
-**Resposta de Sucesso:**
+**Success Response:**
 ```json
 {
   "type": "location_update",
-  "message": "Localização atualizada com sucesso"
+  "message": "Location updated successfully"
 }
 ```
 
-**Comportamento:**
-- Atualiza a posição no Redis GEO
-- Adiciona o motorista à célula H3 correspondente
-- Atualiza automaticamente o heartbeat (TTL de 10 segundos)
-- Remove automaticamente das células H3 antigas quando expira
+**Behavior:**
+- Updates the position in Redis GEO
+- Adds the driver to the corresponding H3 cell
+- Automatically refreshes heartbeat (10-second TTL)
+- Automatically removes stale H3 cell membership on expiration
 
 ### 2. Heartbeat
 
-Mantém a conexão ativa. Deve ser enviado periodicamente se não houver atualizações de localização.
+Keeps the connection alive. It should be sent periodically when location updates are not being sent.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "heartbeat"
 }
 ```
 
-**Resposta:**
+**Response:**
 ```json
 {
   "type": "pong",
-  "message": "Heartbeat recebido"
+  "message": "Heartbeat received"
 }
 ```
 
-**Comportamento:**
-- Renova o TTL das chaves de conexão e status
-- Se não receber heartbeat em 15 segundos, o motorista é marcado como offline automaticamente
+**Behavior:**
+- Renews TTL for connection and status keys
+- If no heartbeat is received for 15 seconds, the driver is automatically marked offline
 
-### 3. Atualização de Status Operacional
+### 3. Operational Status Update
 
-Atualiza o status operacional do motorista (disponível, ocupado, pausado, offline).
+Updates the driver's operational status.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "status_update",
@@ -119,33 +119,33 @@ Atualiza o status operacional do motorista (disponível, ocupado, pausado, offli
 }
 ```
 
-**Valores Válidos:**
-- `AVAILABLE`: Motorista disponível e aceitando corridas
-- `BUSY`: Motorista ocupado com uma corrida ativa
-- `PAUSED`: Motorista pausado/não disponível temporariamente
-- `OFFLINE`: Motorista offline manualmente
+**Valid Values:**
+- `AVAILABLE`: Driver is available and accepting rides
+- `BUSY`: Driver is busy with an active ride
+- `PAUSED`: Driver is temporarily unavailable
+- `OFFLINE`: Driver manually set to offline
 
-**Resposta de Sucesso:**
+**Success Response:**
 ```json
 {
   "type": "status_updated",
-  "message": "Status atualizado com sucesso"
+  "message": "Status updated successfully"
 }
 ```
 
-**Resposta de Erro:**
+**Error Response:**
 ```json
 {
   "type": "error",
-  "message": "Status inválido: INVALID_STATUS"
+  "message": "Invalid status: INVALID_STATUS"
 }
 ```
 
-### 4. Resposta de Oferta de Corrida
+### 4. Ride Offer Response
 
-Motorista aceita ou recusa uma oferta de corrida.
+The driver accepts or rejects a ride offer.
 
-**Formato (Aceitar):**
+**Format (Accept):**
 ```json
 {
   "type": "ride_response",
@@ -154,7 +154,7 @@ Motorista aceita ou recusa uma oferta de corrida.
 }
 ```
 
-**Formato (Recusar):**
+**Format (Reject):**
 ```json
 {
   "type": "ride_response",
@@ -163,67 +163,67 @@ Motorista aceita ou recusa uma oferta de corrida.
 }
 ```
 
-**Campos:**
-- `type` (string, obrigatório): Sempre `"ride_response"`
-- `rideId` (UUID, obrigatório): ID da corrida oferecida
-- `action` (string, obrigatório): `"accept"` ou `"reject"`
+**Fields:**
+- `type` (string, required): Always `"ride_response"`
+- `rideId` (UUID, required): Offered ride ID
+- `action` (string, required): `"accept"` or `"reject"`
 
-**Resposta de Sucesso (Aceitar):**
+**Success Response (Accept):**
 ```json
 {
   "type": "ride_accepted",
-  "message": "Corrida aceita com sucesso"
+  "message": "Ride accepted successfully"
 }
 ```
 
-**Resposta de Sucesso (Recusar):**
+**Success Response (Reject):**
 ```json
 {
   "type": "ride_rejected",
-  "message": "Corrida recusada"
+  "message": "Ride rejected"
 }
 ```
 
-**Resposta de Erro:**
+**Error Response:**
 ```json
 {
   "type": "error",
-  "message": "Não foi possível aceitar a corrida. Ela pode já ter sido aceita por outro motorista ou expirado."
+  "message": "Could not accept the ride. It may already have been accepted by another driver or expired."
 }
 ```
 
-**Comportamento:**
-- Aceite é processado de forma atômica com locks Redis
-- Previne que múltiplos motoristas aceitem a mesma corrida
-- Se aceitar, motorista é marcado como `BUSY` automaticamente
-- Se recusar, sistema tenta próximo motorista da lista
+**Behavior:**
+- Acceptance is processed atomically with Redis locks
+- Prevents multiple drivers from accepting the same ride
+- On acceptance, the driver is automatically marked as `BUSY`
+- On rejection, the system tries the next driver in the candidate list
 
-## Mensagens Recebidas pelo Cliente (Motoristas)
+## Server-to-Client Messages (Drivers)
 
-### Conexão Estabelecida
+### Connection Established
 
-Enviada automaticamente quando a conexão é estabelecida com sucesso.
+Sent automatically when the connection is established successfully.
 
 ```json
 {
   "type": "connected",
-  "message": "Conexão estabelecida com sucesso"
+  "message": "Connection established successfully"
 }
 ```
 
-### Corrida Ativa (Reconexão)
+### Active Ride (Reconnection)
 
-Enviada automaticamente quando o motorista reconecta e há uma corrida ativa. 
-Permite que o app restaure o estado da UI sem precisar fazer uma chamada REST adicional.
+Sent automatically when the driver reconnects and has an active ride.
+It allows the app to restore the ride UI state without an extra REST request.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "active_ride",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
   "passengerId": "018f1234-5678-9abc-def0-123456789def",
   "status": "MOTORISTA_ACEITOU",
-  "estimatedPrice": 23.90,
+  "estimatedPrice": 23.9,
   "finalPrice": null,
   "distanceKm": 6.4,
   "durationMinutes": 18.0,
@@ -241,32 +241,32 @@ Permite que o app restaure o estado da UI sem precisar fazer uma chamada REST ad
 }
 ```
 
-**Campos:**
-- `type` (string): Sempre `"active_ride"`
-- `rideId` (UUID): ID da corrida ativa
-- `passengerId` (UUID): ID do passageiro
-- `status` (string): Status atual da corrida
-- `estimatedPrice` (number): Preço estimado
-- `finalPrice` (number|null): Preço final (null se ainda não finalizada)
-- `distanceKm` (number): Distância em quilômetros
-- `durationMinutes` (number): Duração estimada em minutos
-- `surge` (number): Fator de surge aplicado
-- `requestedAt` (ISO 8601): Data/hora da solicitação
-- `passenger` (object): Informações do passageiro (nome e avaliação)
-- `passengerLocation` (object|null): Localização atual do passageiro (se disponível)
+**Fields:**
+- `type` (string): Always `"active_ride"`
+- `rideId` (UUID): Active ride ID
+- `passengerId` (UUID): Passenger ID
+- `status` (string): Current ride status
+- `estimatedPrice` (number): Estimated ride price
+- `finalPrice` (number|null): Final price (`null` if not completed yet)
+- `distanceKm` (number): Distance in kilometers
+- `durationMinutes` (number): Estimated duration in minutes
+- `surge` (number): Applied surge multiplier
+- `requestedAt` (ISO 8601): Request timestamp
+- `passenger` (object): Passenger info
+- `passengerLocation` (object|null): Passenger location if available
 
-**Comportamento:**
-- Enviada automaticamente após a mensagem `connected` se houver corrida ativa
-- Se não houver corrida ativa, esta mensagem não é enviada
-- O app pode usar esta mensagem para restaurar a UI da corrida ativa
-- A localização do passageiro é incluída se estiver disponível no Redis
-- Se o WebSocket falhar, o app pode usar o fallback REST: `GET /v1/drivers/active-ride`
+**Behavior:**
+- Sent automatically after `connected` when an active ride exists
+- Not sent when no active ride exists
+- Can be used to restore active ride UI state
+- Includes passenger location if available in Redis
+- REST fallback if WebSocket fails: `GET /v1/drivers/active-ride`
 
-### Oferta de Corrida
+### Ride Offer
 
-Enviada quando uma corrida está disponível para o motorista.
+Sent when a ride is available for the driver.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "ride_offer",
@@ -279,7 +279,7 @@ Enviada quando uma corrida está disponível para o motorista.
     "lat": -23.5510,
     "lng": -46.6340
   },
-  "estimatedPrice": 26.10,
+  "estimatedPrice": 26.1,
   "distanceKm": 6.4,
   "durationMinutes": 18.0,
   "etaToPickupMinutes": 5,
@@ -287,120 +287,111 @@ Enviada quando uma corrida está disponível para o motorista.
 }
 ```
 
-**Campos:**
-- `type` (string): Sempre `"ride_offer"`
-- `rideId` (UUID): ID da corrida
-- `pickup` (object): Coordenadas do ponto de embarque
-- `destination` (object): Coordenadas do destino
-- `estimatedPrice` (number): Preço estimado da corrida
-- `distanceKm` (number): Distância em quilômetros
-- `durationMinutes` (number): Duração estimada em minutos
-- `etaToPickupMinutes` (number): Tempo estimado até o ponto de embarque
-- `expiresInSeconds` (number): Tempo restante para responder (geralmente 15s)
+**Fields:**
+- `type` (string): Always `"ride_offer"`
+- `rideId` (UUID): Ride ID
+- `pickup` (object): Pickup coordinates
+- `destination` (object): Destination coordinates
+- `estimatedPrice` (number): Estimated fare
+- `distanceKm` (number): Distance in kilometers
+- `durationMinutes` (number): Estimated duration in minutes
+- `etaToPickupMinutes` (number): ETA to pickup
+- `expiresInSeconds` (number): Time left to respond (typically 15s)
 
-**Comportamento:**
-- Oferta expira após 15 segundos se não houver resposta
-- Se expirar, sistema tenta próximo motorista
-- Motorista deve responder com `ride_response` (accept/reject)
+**Behavior:**
+- Expires after 15 seconds if no response is received
+- If expired, the system tries the next driver
+- Driver must answer with `ride_response` (`accept` or `reject`)
 
-### Respostas de Sucesso
+### Generic Success Responses
 
-Todas as mensagens enviadas pelo cliente recebem uma resposta de confirmação:
+Every valid client message receives a confirmation response:
 
 ```json
 {
-  "type": "<tipo_da_acao>",
-  "message": "Mensagem de confirmação"
+  "type": "<action_type>",
+  "message": "Confirmation message"
 }
 ```
 
-### Respostas de Erro
+### Error Responses
 
-Em caso de erro, o servidor envia:
+When an error occurs, the server returns:
 
 ```json
 {
   "type": "error",
-  "message": "Descrição do erro"
+  "message": "Error description"
 }
 ```
 
-## Mensagens Recebidas pelo Cliente (Passageiros)
+## Server-to-Client Messages (Passengers)
 
-### Conexão Estabelecida
+### Connection Established
 
-Enviada automaticamente quando a conexão é estabelecida com sucesso.
+Sent automatically when the connection is established successfully.
 
 ```json
 {
   "type": "connected",
-  "message": "Conexão estabelecida com sucesso"
+  "message": "Connection established successfully"
 }
 ```
 
-### Notificações de Corrida
+### Ride Notifications
 
-Passageiros recebem notificações em tempo real sobre o status de suas corridas.
+Passengers receive realtime ride status notifications.
 
-#### Motorista Aceitou
+#### Driver Accepted
 
-Enviada quando um motorista aceita a corrida. Inclui informações completas do motorista (nome, avaliação, veículo).
+Sent when a driver accepts the ride. It may include complete driver details (name, rating, vehicle).
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "ride_driver_accepted",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
-  "message": "Motorista aceitou sua corrida",
+  "message": "Driver accepted your ride",
   "data": {
     "driverId": "018f1234-5678-9abc-def0-123456789def",
     "status": "MOTORISTA_ACEITOU",
     "driver": {
       "id": "018f1234-5678-9abc-def0-123456789def",
-      "name": "João Silva",
-      "rating": 9.50,
+      "name": "Joao Silva",
+      "rating": 9.5,
       "vehicle": {
         "licensePlate": "ABC-1234",
         "brand": "Toyota",
         "model": "Corolla",
-        "color": "Branco"
+        "color": "White"
       }
     }
   }
 }
 ```
 
-**Campos:**
-- `type` (string): Sempre `"ride_driver_accepted"`
-- `rideId` (UUID): ID da corrida
-- `message` (string): Mensagem descritiva
-- `data` (object): Dados da notificação
-  - `driverId` (UUID): ID do motorista
-  - `status` (string): Status atual da corrida
-  - `driver` (object, opcional): Informações completas do motorista (se disponível)
-    - `id` (UUID): ID do motorista
-    - `name` (string): Nome do motorista
-    - `rating` (number): Avaliação média do motorista (0 a 10)
-    - `vehicle` (object, opcional): Informações do veículo
-      - `licensePlate` (string): Placa do veículo
-      - `brand` (string): Marca do veículo
-      - `model` (string): Modelo do veículo
-      - `color` (string): Cor do veículo
+**Fields:**
+- `type` (string): Always `"ride_driver_accepted"`
+- `rideId` (UUID): Ride ID
+- `message` (string): Human-readable message
+- `data` (object): Notification payload
+  - `driverId` (UUID): Driver ID
+  - `status` (string): Current ride status
+  - `driver` (object, optional): Full driver details if available
 
-**Comportamento:**
-- Enviada imediatamente quando o motorista aceita a corrida
-- Inclui informações completas do motorista (nome, avaliação, veículo) para exibição imediata na UI
-- Se houver erro ao obter informações completas, apenas `driverId` e `status` são incluídos
-- O app pode usar esta mensagem para exibir informações do motorista sem precisar fazer chamada REST adicional
-- Como fallback, o app pode usar `GET /v1/passengers/active-ride` se o WebSocket falhar
+**Behavior:**
+- Sent immediately after ride acceptance
+- Includes complete driver details for immediate UI display when available
+- If full details cannot be loaded, payload contains only `driverId` and `status`
+- REST fallback if WebSocket fails: `GET /v1/passengers/active-ride`
 
-#### Motorista a Caminho
+#### Driver On The Way
 
 ```json
 {
   "type": "ride_driver_on_the_way",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
-  "message": "Motorista está a caminho do ponto de embarque",
+  "message": "Driver is on the way to the pickup point",
   "data": {
     "driverId": "018f1234-5678-9abc-def0-123456789def",
     "status": "MOTORISTA_A_CAMINHO"
@@ -408,13 +399,13 @@ Enviada quando um motorista aceita a corrida. Inclui informações completas do 
 }
 ```
 
-#### Motorista Próximo
+#### Driver Nearby
 
 ```json
 {
   "type": "ride_driver_nearby",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
-  "message": "Motorista está próximo do ponto de embarque",
+  "message": "Driver is near the pickup point",
   "data": {
     "driverId": "018f1234-5678-9abc-def0-123456789def",
     "status": "MOTORISTA_PROXIMO"
@@ -422,13 +413,13 @@ Enviada quando um motorista aceita a corrida. Inclui informações completas do 
 }
 ```
 
-#### Motorista Chegou
+#### Driver Arrived
 
 ```json
 {
   "type": "ride_driver_arrived",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
-  "message": "Motorista chegou no ponto de embarque",
+  "message": "Driver arrived at the pickup point",
   "data": {
     "driverId": "018f1234-5678-9abc-def0-123456789def",
     "status": "MOTORISTA_CHEGOU"
@@ -436,13 +427,13 @@ Enviada quando um motorista aceita a corrida. Inclui informações completas do 
 }
 ```
 
-#### Atualização de Status
+#### Status Update
 
 ```json
 {
   "type": "ride_status_update",
   "rideId": "018f1234-5678-9abc-def0-123456789abc",
-  "message": "Em rota para o destino.",
+  "message": "On the way to destination.",
   "data": {
     "status": "EM_ROTA",
     "driverId": "018f1234-5678-9abc-def0-123456789def"
@@ -450,96 +441,96 @@ Enviada quando um motorista aceita a corrida. Inclui informações completas do 
 }
 ```
 
-**Tipos de Notificação:**
-- `ride_driver_accepted`: Motorista aceitou a corrida
-- `ride_driver_on_the_way`: Motorista está a caminho
-- `ride_driver_nearby`: Motorista está próximo (máximo 500m)
-- `ride_driver_arrived`: Motorista chegou (máximo 100m)
-- `ride_status_update`: Atualização geral de status
+**Notification Types:**
+- `ride_driver_accepted`: Driver accepted the ride
+- `ride_driver_on_the_way`: Driver is heading to pickup
+- `ride_driver_nearby`: Driver is near pickup (max 500m)
+- `ride_driver_arrived`: Driver arrived (max 100m)
+- `ride_status_update`: Generic ride status update
 
-**Comportamento:**
-- Notificações são enviadas automaticamente quando motorista atualiza status
-- Passageiro não precisa enviar mensagens (apenas recebe)
-- Conexão permanece aberta para receber notificações
+**Behavior:**
+- Notifications are sent automatically when the driver updates ride status
+- Passenger socket is receive-only for ride notifications
+- Connection remains open to receive subsequent events
 
-## Estados do Motorista
+## Driver States
 
-O sistema gerencia dois tipos de estado:
+The system tracks two independent state dimensions.
 
-### 1. Estado de Conexão (Controlado pelo Sistema)
+### 1. Connection State (System-managed)
 
-- **Online**: Motorista conectado via WebSocket e com heartbeat recente (< 15s)
-- **Offline**: Motorista desconectado ou sem heartbeat há mais de 15 segundos
+- **Online**: Driver is connected via WebSocket with recent heartbeat (< 15s)
+- **Offline**: Driver is disconnected or heartbeat is stale (> 15s)
 
-**Regras:**
-- Conexão estabelecida → `online = true`
-- Sem mensagens em 15s → `online = false` (automático)
-- Socket fechado → `online = false` (automático)
+**Rules:**
+- Connection established -> `online = true`
+- No messages for 15s -> `online = false` (automatic)
+- Socket closed -> `online = false` (automatic)
 
-### 2. Estado Operacional (Controlado pelo Motorista)
+### 2. Operational State (Driver-managed)
 
-- **AVAILABLE**: Motorista disponível e aceitando corridas
-- **BUSY**: Motorista ocupado com corrida ativa
-- **PAUSED**: Motorista pausado temporariamente
-- **OFFLINE**: Motorista offline manualmente
+- **AVAILABLE**: Driver can receive rides
+- **BUSY**: Driver has an active ride
+- **PAUSED**: Driver is temporarily unavailable
+- **OFFLINE**: Driver manually offline
 
-**Regras:**
-- Pode ser alterado via WebSocket (`status_update`) ou REST API
-- Persiste no Redis com TTL de 24 horas
-- Default é `OFFLINE` se não estiver definido
+**Rules:**
+- Updated via WebSocket (`status_update`) or REST API
+- Persisted in Redis with 24-hour TTL
+- Defaults to `OFFLINE` when undefined
 
-### Recebimento de Corridas
+### Ride Eligibility
 
-Um motorista **só recebe corridas** se:
-- `online = true` (conectado + heartbeat recente)
+A driver receives ride offers only if:
+- `online = true`
 - `operationalStatus = AVAILABLE`
 
-## Estrutura Redis
+## Redis Structure
 
-### Chaves Utilizadas
+### Keys
 
 ```
 drivers_live (GEO)
-  → Armazena posições dos motoristas usando Redis GEO
-  → Chave: "drivers_live"
-  → Valor: GeoLocation com driverId como membro
+  -> Stores driver positions via Redis GEO
+  -> Key: "drivers_live"
+  -> Value: GeoLocation with driverId as member
 
 drivers_status:{driverId}
-  → Status de conexão (online/offline)
-  → Valor: "online"
-  → TTL: 10 segundos
+  -> Connection status (online/offline)
+  -> Value: "online"
+  -> TTL: 10 seconds
 
 drivers_connection:{driverId}
-  → Indica conexão WebSocket ativa
-  → Valor: "connected"
-  → TTL: 20 segundos (renovado a cada heartbeat)
+  -> Active WebSocket connection marker
+  -> Value: "connected"
+  -> TTL: 20 seconds (refreshed on heartbeat)
 
 drivers_operational_status:{driverId}
-  → Status operacional do motorista
-  → Valor: "AVAILABLE" | "BUSY" | "PAUSED" | "OFFLINE"
-  → TTL: 24 horas
+  -> Driver operational state
+  -> Value: "AVAILABLE" | "BUSY" | "PAUSED" | "OFFLINE"
+  -> TTL: 24 hours
 
 h3:cell:{h3Index}
-  → Conjunto de motoristas em uma célula H3
-  → Tipo: Set
-  → Membros: driverId (String)
-  → TTL: 12 segundos
+  -> Set of drivers in a specific H3 cell
+  -> Type: Set
+  -> Members: driverId (String)
+  -> TTL: 12 seconds
 ```
 
-### H3 Indexação Espacial
+### H3 Spatial Indexing
 
-- **Resolução**: 9 (células de ~0.5km)
-- **Uso**: Indexação rápida de motoristas por região geográfica
-- **Atualização**: Automática a cada `location_update`
-- **Expiração**: Automática após 12 segundos sem atualização
+- **Resolution**: 9 (cells around ~0.5km)
+- **Use case**: Fast lookup of nearby drivers
+- **Update trigger**: Every `location_update`
+- **Expiration**: Automatic after 12 seconds without updates
 
-## Endpoints REST Relacionados
+## Related REST Endpoints
 
 ### GET `/v1/drivers/operational-status`
 
-Obtém o status operacional e de conexão do motorista autenticado.
+Returns operational and connection status for the authenticated driver.
 
-**Resposta:**
+**Response:**
 ```json
 {
   "operationalStatus": "AVAILABLE",
@@ -550,7 +541,7 @@ Obtém o status operacional e de conexão do motorista autenticado.
 
 ### PATCH `/v1/drivers/operational-status`
 
-Atualiza o status operacional do motorista.
+Updates the driver's operational status.
 
 **Request:**
 ```json
@@ -559,7 +550,7 @@ Atualiza o status operacional do motorista.
 }
 ```
 
-**Resposta:**
+**Response:**
 ```json
 {
   "operationalStatus": "AVAILABLE",
@@ -568,327 +559,298 @@ Atualiza o status operacional do motorista.
 }
 ```
 
-## Fluxo de Funcionamento
+## Runtime Flow
 
-### 1. Conexão Inicial
-
-```
-Cliente → ws://host/ws/drivers?token=<JWT>
-  ↓
-Interceptor valida JWT e verifica role "driver"
-  ↓
-Handler marca motorista como online
-  ↓
-Cria chaves no Redis (status, connection)
-  ↓
-Envia mensagem "connected"
-```
-
-### 2. Atualização de Localização
+### 1. Initial Connection
 
 ```
-Cliente → {"type": "location_update", "lat": ..., "lng": ...}
-  ↓
-Handler processa mensagem
-  ↓
-Atualiza Redis GEO (drivers_live)
-  ↓
-Calcula célula H3
-  ↓
-Adiciona motorista à célula H3
-  ↓
-Atualiza heartbeat (TTL)
-  ↓
-Responde com confirmação
+Client -> ws://host/ws/drivers?token=<JWT>
+  -> JWT interceptor validates token and role "driver"
+  -> Handler marks driver online
+  -> Redis keys are created (status, connection)
+  -> "connected" message is sent
+```
+
+### 2. Location Update
+
+```
+Client -> {"type": "location_update", "lat": ..., "lng": ...}
+  -> Handler processes message
+  -> Redis GEO is updated (drivers_live)
+  -> H3 cell is computed
+  -> Driver is added to H3 cell set
+  -> Heartbeat TTL is refreshed
+  -> Confirmation is returned
 ```
 
 ### 3. Heartbeat
 
 ```
-Cliente → {"type": "heartbeat"}
-  ↓
-Handler processa mensagem
-  ↓
-Renova TTL das chaves (status, connection)
-  ↓
-Responde com "pong"
+Client -> {"type": "heartbeat"}
+  -> Handler processes message
+  -> TTL is renewed (status, connection)
+  -> "pong" response is returned
 ```
 
-### 4. Desconexão
+### 4. Disconnection
 
 ```
-Cliente fecha conexão ou timeout
-  ↓
-Handler detecta desconexão
-  ↓
-Remove do Redis GEO
-  ↓
-Remove das células H3 (expiração automática)
-  ↓
-Marca como offline
+Client closes connection or times out
+  -> Handler detects disconnect
+  -> Driver removed from Redis GEO
+  -> H3 membership naturally expires
+  -> Driver marked offline
 ```
 
-## Segurança
+## Security
 
-### Autenticação
+### Authentication
 
-- **JWT obrigatório**: Token deve ser válido e não expirado
-- **Role validation**: Apenas usuários com role `driver` podem conectar
-- **UUID do token**: O ID do motorista é extraído do token (não confia no cliente)
+- **JWT required**: Token must be valid and not expired
+- **Role validation**: Only users with role `driver` can connect to the drivers endpoint
+- **Token-derived identity**: Driver ID is extracted from token claims (never trusted from client payload)
 
-### Validações
+### Validation
 
-- Token deve estar presente na query string
-- Token deve ser válido (assinatura, expiração, issuer, audience)
-- Usuário deve ter role `driver`
-- Motorista deve existir e não estar deletado
+- Token must be present in query string
+- Token must pass signature and claim validation (expiration, issuer, audience)
+- User must have role `driver` or `passenger` for the selected endpoint
+- Driver/passenger account must exist and not be deleted
 
-### Proteção contra Ataques
+### Attack Surface Protection
 
-- **Múltiplas conexões**: Se um motorista já está conectado, a conexão anterior é fechada
-- **TTL automático**: Chaves expiram automaticamente, prevenindo dados órfãos
-- **Validação de dados**: Latitude/longitude são validados antes de processar
+- **Single active session per driver**: Existing connection is closed on a new connection
+- **Automatic TTL expiration**: Prevents stale orphan state in Redis
+- **Coordinate validation**: Latitude/longitude are validated before processing
 
-## Exemplo de Implementação Cliente (JavaScript)
+## Example Client Implementation (JavaScript)
 
 ```javascript
 class DriverWebSocketClient {
-    constructor(token, baseUrl = 'ws://localhost:8080') {
-        this.token = token;
-        this.baseUrl = baseUrl;
-        this.ws = null;
-        this.heartbeatInterval = null;
-        this.locationUpdateInterval = null;
+  constructor(token, baseUrl = "ws://localhost:8080") {
+    this.token = token;
+    this.baseUrl = baseUrl;
+    this.ws = null;
+    this.heartbeatInterval = null;
+    this.locationUpdateInterval = null;
+  }
+
+  connect() {
+    const url = `${this.baseUrl}/ws/drivers?token=${this.token}`;
+    this.ws = new WebSocket(url);
+
+    this.ws.onopen = () => {
+      console.log("WebSocket connected");
+      this.startHeartbeat();
+      this.startLocationUpdates();
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleMessage(message);
+    };
+
+    this.ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    this.ws.onclose = () => {
+      console.log("WebSocket disconnected");
+      this.stopHeartbeat();
+      this.stopLocationUpdates();
+    };
+  }
+
+  startHeartbeat() {
+    this.heartbeatInterval = setInterval(() => {
+      this.send({ type: "heartbeat" });
+    }, 10000);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
+  }
 
-    connect() {
-        const url = `${this.baseUrl}/ws/drivers?token=${this.token}`;
-        this.ws = new WebSocket(url);
-
-        this.ws.onopen = () => {
-            console.log('WebSocket conectado');
-            this.startHeartbeat();
-            this.startLocationUpdates();
-        };
-
-        this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            this.handleMessage(message);
-        };
-
-        this.ws.onerror = (error) => {
-            console.error('Erro WebSocket:', error);
-        };
-
-        this.ws.onclose = () => {
-            console.log('WebSocket desconectado');
-            this.stopHeartbeat();
-            this.stopLocationUpdates();
-        };
-    }
-
-    startHeartbeat() {
-        // Enviar heartbeat a cada 10 segundos
-        this.heartbeatInterval = setInterval(() => {
-            this.send({
-                type: 'heartbeat'
-            });
-        }, 10000);
-    }
-
-    stopHeartbeat() {
-        if (this.heartbeatInterval) {
-            clearInterval(this.heartbeatInterval);
-            this.heartbeatInterval = null;
-        }
-    }
-
-    startLocationUpdates() {
-        // Atualizar localização a cada 3 segundos
-        this.locationUpdateInterval = setInterval(() => {
-            navigator.geolocation.getCurrentPosition((position) => {
-                this.send({
-                    type: 'location_update',
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                    heading: position.coords.heading || null,
-                    speed: position.coords.speed ? position.coords.speed * 3.6 : null // m/s para km/h
-                });
-            });
-        }, 3000);
-    }
-
-    stopLocationUpdates() {
-        if (this.locationUpdateInterval) {
-            clearInterval(this.locationUpdateInterval);
-            this.locationUpdateInterval = null;
-        }
-    }
-
-    updateStatus(status) {
+  startLocationUpdates() {
+    this.locationUpdateInterval = setInterval(() => {
+      navigator.geolocation.getCurrentPosition((position) => {
         this.send({
-            type: 'status_update',
-            status: status
+          type: "location_update",
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          heading: position.coords.heading || null,
+          speed: position.coords.speed ? position.coords.speed * 3.6 : null
         });
-    }
+      });
+    }, 3000);
+  }
 
-    send(message) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(message));
-        }
+  stopLocationUpdates() {
+    if (this.locationUpdateInterval) {
+      clearInterval(this.locationUpdateInterval);
+      this.locationUpdateInterval = null;
     }
+  }
 
-    handleMessage(message) {
-        switch (message.type) {
-            case 'connected':
-                console.log('Conexão estabelecida:', message.message);
-                break;
-            case 'location_updated':
-                console.log('Localização atualizada');
-                break;
-            case 'pong':
-                console.log('Heartbeat confirmado');
-                break;
-            case 'status_updated':
-                console.log('Status atualizado');
-                break;
-            case 'error':
-                console.error('Erro:', message.message);
-                break;
-        }
-    }
+  updateStatus(status) {
+    this.send({
+      type: "status_update",
+      status
+    });
+  }
 
-    disconnect() {
-        this.stopHeartbeat();
-        this.stopLocationUpdates();
-        if (this.ws) {
-            this.ws.close();
-        }
+  send(message) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
     }
+  }
+
+  handleMessage(message) {
+    switch (message.type) {
+      case "connected":
+        console.log("Connected:", message.message);
+        break;
+      case "location_update":
+        console.log("Location updated");
+        break;
+      case "pong":
+        console.log("Heartbeat confirmed");
+        break;
+      case "status_updated":
+        console.log("Status updated");
+        break;
+      case "error":
+        console.error("Error:", message.message);
+        break;
+    }
+  }
+
+  disconnect() {
+    this.stopHeartbeat();
+    this.stopLocationUpdates();
+    if (this.ws) this.ws.close();
+  }
 }
 
-// Uso
-const client = new DriverWebSocketClient('seu-jwt-token-aqui');
+const client = new DriverWebSocketClient("your-jwt-token");
 client.connect();
-
-// Atualizar status
-client.updateStatus('AVAILABLE');
-
-// Desconectar
-// client.disconnect();
+client.updateStatus("AVAILABLE");
 ```
 
 ## Troubleshooting
 
-### Problema: Conexão rejeitada
+### Problem: Connection Rejected
 
-**Possíveis causas:**
-- Token inválido ou expirado
-- Token sem role `driver`
-- Motorista não existe ou está deletado
+**Possible causes:**
+- Invalid or expired token
+- Token without required role
+- Driver/passenger account does not exist or was deleted
 
-**Solução:**
-- Verificar se o token está válido
-- Verificar se o usuário tem role `driver`
-- Verificar se o motorista está ativo
+**How to fix:**
+- Validate JWT token and expiration
+- Validate user role
+- Validate account status
 
-### Problema: Motorista fica offline mesmo conectado
+### Problem: Driver Becomes Offline While Connected
 
-**Possíveis causas:**
-- Heartbeat não está sendo enviado
-- Intervalo de heartbeat muito longo (> 15s)
-- Problemas de rede
+**Possible causes:**
+- Heartbeat not being sent
+- Heartbeat interval too long (> 15s)
+- Intermittent network issues
 
-**Solução:**
-- Garantir que heartbeat é enviado a cada 10 segundos
-- Verificar conectividade de rede
-- Verificar logs do servidor
+**How to fix:**
+- Ensure heartbeat is sent every 10 seconds
+- Review network stability
+- Check server logs and Redis key TTL behavior
 
-### Problema: Localização não atualiza
+### Problem: Location Not Updating
 
-**Possíveis causas:**
-- Formato de mensagem incorreto
-- Latitude/longitude inválidas
-- Motorista não existe
+**Possible causes:**
+- Invalid message payload format
+- Invalid latitude/longitude values
+- Driver record not found
 
-**Solução:**
-- Verificar formato JSON da mensagem
-- Validar coordenadas (lat: -90 a 90, lng: -180 a 180)
-- Verificar logs do servidor
+**How to fix:**
+- Validate JSON payload format
+- Validate coordinate ranges (`lat`: -90..90, `lng`: -180..180)
+- Check backend logs for validation errors
 
-## Limites e Considerações
+## Limits and Operational Notes
 
 ### Performance
 
-- **Heartbeat**: Recomendado a cada 10 segundos
-- **Location updates**: Recomendado a cada 2-5 segundos
-- **TTL**: Configurado para expiração automática após 15s sem heartbeat
+- **Heartbeat**: Recommended every 10 seconds
+- **Location updates**: Recommended every 2-5 seconds
+- **Timeout behavior**: Driver is considered offline after ~15 seconds without heartbeat/message
 
-### Escalabilidade
+### Scalability
 
-- Sistema suporta múltiplas conexões simultâneas
-- Redis GEO otimizado para buscas geográficas
-- H3 permite indexação eficiente por região
+- Supports many simultaneous connections
+- Redis GEO is optimized for geospatial lookups
+- H3 indexing allows efficient regional candidate filtering
 
-### Monitoramento
+### Monitoring
 
-- Logs de conexão/desconexão
-- Métricas de heartbeat
-- Status de motoristas online/offline
+- Connection/disconnection logs
+- Heartbeat metrics
+- Online/offline driver state metrics
 
-## Sistema de Matching e Dispatch
+## Ride Matching and Dispatch
 
-### Fluxo de Oferta de Corrida
+### Ride Offer Flow
 
-1. **Passageiro solicita corrida** → Sistema cria corrida com status `AGUARDANDO_MOTORISTA`
-2. **Sistema busca motoristas** → Usa H3 + Redis GEO para encontrar candidatos próximos
-3. **Sistema envia oferta** → Envia para motorista mais próximo via WebSocket
-4. **Motorista responde** → Aceita ou recusa via WebSocket
-5. **Se aceitar** → Corrida atualizada para `MOTORISTA_ACEITOU`, passageiro notificado
-6. **Se recusar/timeout** → Sistema tenta próximo motorista da lista
+1. **Passenger requests ride** -> Ride is created with `AGUARDANDO_MOTORISTA`
+2. **System finds candidate drivers** -> Uses H3 + Redis GEO
+3. **System sends offer** -> Sends to closest candidate via WebSocket
+4. **Driver responds** -> Accepts or rejects via WebSocket
+5. **If accepted** -> Ride moves to `MOTORISTA_ACEITOU`, passenger is notified
+6. **If rejected/timeout** -> System tries next candidate
 
-### Estratégia de Envio
+### Dispatch Strategy
 
-- **Unicast sequencial**: Envia para um motorista por vez
-- **Timeout**: 15 segundos por oferta
-- **Máximo de tentativas**: 20 motoristas (configurável)
-- **Locks Redis**: Previne que múltiplos motoristas aceitem a mesma corrida
+- **Sequential unicast**: One driver at a time
+- **Offer timeout**: 15 seconds per offer
+- **Max attempts**: 20 drivers (configurable)
+- **Redis locks**: Prevent concurrent acceptance races
 
-### Estruturas Redis para Dispatch
+### Redis Structures for Dispatch
 
 ```
 ride_dispatch:{rideId}
-  → Estado de dispatch da corrida
-  → Contém lista de candidatos e índice atual
-  → TTL: 10 minutos
+  -> Dispatch state for one ride
+  -> Contains candidate list and current index
+  -> TTL: 10 minutes
 
 ride_offer:{rideId}:{driverId}
-  → Oferta individual para um motorista
-  → Status: pending | accepted | rejected | expired
-  → TTL: 25 segundos (15s timeout + 10s buffer)
+  -> Individual offer state per driver
+  -> Status: pending | accepted | rejected | expired
+  -> TTL: 25 seconds (15s timeout + 10s buffer)
 
 lock:ride:{rideId}
-  → Lock para processar aceite de corrida
-  → TTL: 5 segundos
+  -> Lock for ride acceptance processing
+  -> TTL: 5 seconds
 
 lock:driver:{driverId}
-  → Lock para processar aceite do motorista
-  → TTL: 5 segundos
+  -> Lock for driver acceptance processing
+  -> TTL: 5 seconds
 ```
 
-## Endpoints REST para Motoristas Gerenciarem Corridas
+## REST Endpoints for Driver Ride Progress
 
 ### PATCH `/v1/drivers/rides/{rideId}/on-the-way`
 
-Motorista indica que está a caminho do ponto de embarque.
+Driver indicates they are on the way to pickup.
 
-**Request:** Sem body
+**Request:** no body
 
 **Response:** `204 No Content`
 
 ### PATCH `/v1/drivers/rides/{rideId}/nearby`
 
-Motorista indica que está próximo do ponto de embarque (máximo 500m).
+Driver indicates they are near pickup (max 500m).
 
 **Request:**
 ```json
@@ -900,11 +862,11 @@ Motorista indica que está próximo do ponto de embarque (máximo 500m).
 
 **Response:** `204 No Content`
 
-**Validação:** Distância até ponto de embarque deve ser ≤ 500m
+**Validation:** distance to pickup must be <= 500m
 
 ### PATCH `/v1/drivers/rides/{rideId}/arrived`
 
-Motorista indica que chegou no ponto de embarque (máximo 100m).
+Driver indicates they arrived at pickup (max 100m).
 
 **Request:**
 ```json
@@ -916,27 +878,27 @@ Motorista indica que chegou no ponto de embarque (máximo 100m).
 
 **Response:** `204 No Content`
 
-**Validação:** Distância até ponto de embarque deve ser ≤ 100m
+**Validation:** distance to pickup must be <= 100m
 
 ### PATCH `/v1/drivers/rides/{rideId}/boarded`
 
-Motorista indica que passageiro embarcou.
+Driver indicates passenger boarded.
 
-**Request:** Sem body
+**Request:** no body
 
 **Response:** `204 No Content`
 
 ### PATCH `/v1/drivers/rides/{rideId}/in-route`
 
-Motorista indica que está em rota para o destino.
+Driver indicates ride is in route to destination.
 
-**Request:** Sem body
+**Request:** no body
 
 **Response:** `204 No Content`
 
 ### PATCH `/v1/drivers/rides/{rideId}/near-destination`
 
-Motorista indica que está próximo do destino (máximo 500m).
+Driver indicates they are near destination (max 500m).
 
 **Request:**
 ```json
@@ -948,109 +910,110 @@ Motorista indica que está próximo do destino (máximo 500m).
 
 **Response:** `204 No Content`
 
-**Validação:** Distância até destino deve ser ≤ 500m
+**Validation:** distance to destination must be <= 500m
 
 ### PATCH `/v1/drivers/rides/{rideId}/complete`
 
-Motorista finaliza a corrida e informa o preço final.
+Driver completes the ride and sends final fare.
 
 **Request:**
 ```json
 {
-  "finalPrice": 28.50
+  "finalPrice": 28.5
 }
 ```
 
 **Response:** `204 No Content`
 
-## Máquina de Estados da Corrida
+## Ride State Machine
 
 ```
 AGUARDANDO_MOTORISTA
-  ↓ (sistema encontra motoristas)
+  -> (system finds drivers)
 MOTORISTA_ENCONTRADO
-  ↓ (motorista aceita)
+  -> (driver accepts)
 MOTORISTA_ACEITOU
-  ↓ (motorista indica)
+  -> (driver updates)
 MOTORISTA_A_CAMINHO
-  ↓ (motorista próximo - valida 500m)
+  -> (driver nearby, 500m validation)
 MOTORISTA_PROXIMO
-  ↓ (motorista chegou - valida 100m)
+  -> (driver arrived, 100m validation)
 MOTORISTA_CHEGOU
-  ↓ (motorista indica)
+  -> (driver updates)
 PASSAGEIRO_EMBARCADO
-  ↓ (motorista indica)
+  -> (driver updates)
 EM_ROTA
-  ↓ (motorista próximo ao destino - valida 500m)
+  -> (near destination, 500m validation)
 PROXIMO_DESTINO
-  ↓ (motorista finaliza)
+  -> (driver completes)
 CORRIDA_FINALIZADA
-  ↓ (aguarda avaliação)
+  -> (await rating)
 AGUARDANDO_AVALIACAO
-  ↓
+  ->
 CONCLUIDA
 ```
 
-**Estados de Cancelamento:**
-- `CANCELADA_PASSAGEIRO`: Cancelada pelo passageiro
-- `CANCELADA_MOTORISTA`: Cancelada pelo motorista
-- `CANCELADA_NO_SHOW`: Passageiro não compareceu
-- `EXPIRADA`: Nenhum motorista aceitou no tempo limite
+**Cancellation States:**
+- `CANCELADA_PASSAGEIRO`: Canceled by passenger
+- `CANCELADA_MOTORISTA`: Canceled by driver
+- `CANCELADA_NO_SHOW`: Passenger did not show up
+- `EXPIRADA`: No driver accepted within timeout
 
-## Validação de Distância
+## Distance Validation
 
-O sistema valida distâncias usando a fórmula de Haversine:
+Distance checks use the Haversine formula:
 
-- **Próximo ao embarque**: Máximo 500m
-- **Chegou no embarque**: Máximo 100m
-- **Próximo ao destino**: Máximo 500m
+- **Near pickup**: maximum 500m
+- **Arrived at pickup**: maximum 100m
+- **Near destination**: maximum 500m
 
-Validações são feitas automaticamente quando motorista tenta atualizar status que requer proximidade.
+Validations run automatically when the driver attempts status changes that require proximity.
 
 ## Changelog
 
 ### v1.0.0 (2025-12-01)
-- Implementação inicial do sistema WebSocket
-- Suporte a localização em tempo real
-- Sistema de heartbeat
-- Gerenciamento de status operacional
-- Integração com Redis GEO e H3
+- Initial WebSocket implementation
+- Real-time location support
+- Heartbeat mechanism
+- Operational status management
+- Redis GEO + H3 integration
 
 ### v2.0.0 (2025-12-03)
-- Sistema de matching e dispatch de corridas
-- Ofertas de corrida enviadas aos motoristas via WebSocket
-- Respostas de aceite/recusa via WebSocket
-- Locks Redis para operações atômicas
-- Worker de timeout para ofertas expiradas
-- WebSocket para passageiros (notificações em tempo real)
-- Endpoints REST para motoristas atualizarem status de corrida
-- Validação de distância geográfica (Haversine)
-- Notificações automáticas ao passageiro em cada mudança de status
+- Ride matching and dispatch system
+- Ride offers to drivers via WebSocket
+- Accept/reject responses via WebSocket
+- Redis locks for atomic operations
+- Timeout worker for expired offers
+- Passenger WebSocket notifications
+- REST endpoints for driver ride status updates
+- Geographic distance validation (Haversine)
+- Automatic passenger notifications on each status transition
 
 ### v2.1.0 (2025-12-03)
-- **Expansão progressiva do raio de busca**: Sistema agora expande automaticamente o raio de busca de motoristas até encontrar candidatos ou atingir limite máximo (50km)
-- **Compartilhamento de localização do passageiro**: Passageiros podem enviar localização via WebSocket, que é automaticamente enviada ao motorista durante corridas ativas
-- **Worker de broadcast de localização**: Worker periódico envia localização do passageiro para o motorista a cada 5 segundos durante corridas ativas
-- **Notificação de corrida expirada**: Passageiro é notificado quando nenhum motorista é encontrado após expandir busca
+- **Progressive search radius expansion**: Automatically expands driver search radius up to 50km
+- **Passenger live location sharing**: Passenger location can be sent via WebSocket and streamed to driver during active rides
+- **Passenger location broadcast worker**: Periodic worker pushes passenger location to the driver every 5 seconds
+- **Expired ride notification**: Passenger is notified when no drivers are found after search expansion
 
-## Compartilhamento de Localização do Passageiro
+## Passenger Location Sharing
 
-### Visão Geral
+### Overview
 
-Durante uma corrida ativa, o motorista pode ver a localização do passageiro em tempo real. O passageiro envia sua localização via WebSocket, que é armazenada no Redis GEO e automaticamente enviada ao motorista.
+During active rides, the driver can view the passenger location in real time.
+Passenger location is sent via WebSocket, stored in Redis GEO, and broadcast to the assigned driver.
 
-### Fluxo
+### Flow
 
-1. **Passageiro envia localização** → Via WebSocket (`location_update`)
-2. **Sistema armazena no Redis GEO** → Chave `passengers_live` com TTL de 30 segundos
-3. **Worker periódico** → A cada 5 segundos, envia localização do passageiro para o motorista
-4. **Motorista recebe via WebSocket** → Mensagem `passenger_location` com coordenadas
+1. **Passenger sends location** via WebSocket (`location_update`)
+2. **System stores location** in Redis GEO key `passengers_live` with 30-second TTL
+3. **Periodic worker runs** every 5 seconds
+4. **Driver receives** `passenger_location` messages with current coordinates
 
-### Mensagens do Passageiro
+### Passenger Messages
 
-#### Atualização de Localização
+#### Location Update
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "location_update",
@@ -1061,33 +1024,33 @@ Durante uma corrida ativa, o motorista pode ver a localização do passageiro em
 }
 ```
 
-**Campos:**
-- `type` (string, obrigatório): Sempre `"location_update"`
-- `lat` (number, obrigatório): Latitude em graus decimais (-90 a 90)
-- `lng` (number, obrigatório): Longitude em graus decimais (-180 a 180)
-- `heading` (number, opcional): Direção em graus (0-360)
-- `speed` (number, opcional): Velocidade em km/h
+**Fields:**
+- `type` (string, required): Always `"location_update"`
+- `lat` (number, required): Latitude in decimal degrees (-90 to 90)
+- `lng` (number, required): Longitude in decimal degrees (-180 to 180)
+- `heading` (number, optional): Direction in degrees (0-360)
+- `speed` (number, optional): Speed in km/h
 
-**Resposta de Sucesso:**
+**Success Response:**
 ```json
 {
-  "type": "location_updated",
-  "message": "Localização atualizada com sucesso"
+  "type": "location_update",
+  "message": "Location updated successfully"
 }
 ```
 
-**Comportamento:**
-- Localização é armazenada no Redis GEO (`passengers_live`)
-- TTL de 30 segundos (expira automaticamente se não atualizar)
-- Worker envia automaticamente para motorista a cada 5 segundos durante corridas ativas
+**Behavior:**
+- Stored in Redis GEO (`passengers_live`)
+- 30-second TTL (auto-expires without refresh)
+- Worker broadcasts to the assigned driver every 5 seconds during active rides
 
-### Mensagens Recebidas pelo Motorista
+### Driver Messages
 
-#### Localização do Passageiro
+#### Passenger Location
 
-Enviada automaticamente durante corridas ativas quando o passageiro está compartilhando localização.
+Sent automatically during active rides while the passenger is sharing location.
 
-**Formato:**
+**Format:**
 ```json
 {
   "type": "passenger_location",
@@ -1098,65 +1061,65 @@ Enviada automaticamente durante corridas ativas quando o passageiro está compar
 }
 ```
 
-**Campos:**
-- `type` (string): Sempre `"passenger_location"`
-- `rideId` (UUID): ID da corrida ativa
-- `passengerId` (UUID): ID do passageiro
-- `lat` (number): Latitude do passageiro
-- `lng` (number): Longitude do passageiro
+**Fields:**
+- `type` (string): Always `"passenger_location"`
+- `rideId` (UUID): Active ride ID
+- `passengerId` (UUID): Passenger ID
+- `lat` (number): Passenger latitude
+- `lng` (number): Passenger longitude
 
-**Comportamento:**
-- Enviada automaticamente a cada 5 segundos durante corridas ativas
-- Apenas para corridas nos estados: `MOTORISTA_ACEITOU`, `MOTORISTA_A_CAMINHO`, `MOTORISTA_PROXIMO`, `MOTORISTA_CHEGOU`, `PASSAGEIRO_EMBARCADO`, `EM_ROTA`, `PROXIMO_DESTINO`
-- Se passageiro não estiver compartilhando localização, mensagem não é enviada
+**Behavior:**
+- Sent every 5 seconds during active rides
+- Applies to ride states: `MOTORISTA_ACEITOU`, `MOTORISTA_A_CAMINHO`, `MOTORISTA_PROXIMO`, `MOTORISTA_CHEGOU`, `PASSAGEIRO_EMBARCADO`, `EM_ROTA`, `PROXIMO_DESTINO`
+- If passenger is not sharing location, no message is sent
 
-### Estrutura Redis para Passageiros
+### Redis Structure for Passenger Tracking
 
 ```
 passengers_live (GEO)
-  → Armazena posições dos passageiros usando Redis GEO
-  → Chave: "passengers_live"
-  → Valor: GeoLocation com passengerId como membro
-  → TTL: 30 segundos (renovado a cada atualização)
+  -> Stores passenger positions via Redis GEO
+  -> Key: "passengers_live"
+  -> Value: GeoLocation with passengerId as member
+  -> TTL: 30 seconds (refreshed on update)
 ```
 
-## Expansão Progressiva do Raio de Busca
+## Progressive Search Radius Expansion
 
-### Visão Geral
+### Overview
 
-O sistema agora implementa expansão progressiva do raio de busca de motoristas. Se não encontrar motoristas próximos, o sistema expande automaticamente o raio até encontrar motoristas ou atingir o limite máximo.
+If no nearby drivers are found initially, the system progressively expands the search radius until drivers are found or the maximum limit is reached.
 
-### Estratégia de Busca
+### Search Strategy
 
-1. **Tentativa 1: H3 com ring inicial (ring=2)**
-   - Busca rápida em células H3 próximas
-   - Ideal para áreas com muitos motoristas
+1. **Attempt 1: H3 initial ring (`ring=2`)**
+   - Fast lookup in nearby H3 cells
+   - Best for high-density areas
 
-2. **Tentativa 2: Expansão progressiva do H3 ring (ring=3 até 10)**
-   - Expande o anel de células H3 progressivamente
-   - Aumenta a área de busca mantendo eficiência
+2. **Attempt 2: Progressive H3 ring expansion (`ring=3` to `ring=10`)**
+   - Expands H3 coverage gradually
+   - Keeps search efficient before broader fallback
 
-3. **Tentativa 3: Redis GEO com raio crescente (5km até 50km)**
-   - Usa Redis GEO para busca mais abrangente
-   - Incrementa raio em 5km a cada tentativa
-   - Máximo de 50km de raio
+3. **Attempt 3: Redis GEO expanding radius (`5km` to `50km`)**
+   - Wider geospatial lookup fallback
+   - Radius increases by `5km` per attempt
+   - Max radius: `50km`
 
-### Configurações
+### Configuration
 
 ```java
-H3_RING_SIZE_INITIAL = 2      // Anel inicial
-H3_RING_SIZE_MAX = 10         // Anel máximo
-GEO_RADIUS_INITIAL_KM = 5.0   // Raio inicial em km
-GEO_RADIUS_MAX_KM = 50.0      // Raio máximo em km
-GEO_RADIUS_INCREMENT_KM = 5.0 // Incremento do raio
+H3_RING_SIZE_INITIAL = 2
+H3_RING_SIZE_MAX = 10
+GEO_RADIUS_INITIAL_KM = 5.0
+GEO_RADIUS_MAX_KM = 50.0
+GEO_RADIUS_INCREMENT_KM = 5.0
 ```
 
 ### Logs
 
-O sistema registra qual estratégia encontrou motoristas:
+The system logs the strategy that found candidates:
 
 ```
-Encontrados 3 motoristas candidatos com H3 (ring=2) para origem (-23.5505, -46.6333)
-Encontrados 5 motoristas candidatos com Redis GEO (raio=15km) para origem (-23.5505, -46.6333)
+Found 3 candidate drivers with H3 (ring=2) for origin (-23.5505, -46.6333)
+Found 5 candidate drivers with Redis GEO (radius=15km) for origin (-23.5505, -46.6333)
 ```
 
