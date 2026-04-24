@@ -11,21 +11,21 @@ push via OneSignal.
 
 ## Stack Principal
 
-| Camada | Tecnologia |
-|---|---|
-| Framework mobile | React Native 0.81 + Expo SDK 54 |
-| Linguagem | TypeScript 5.9 (strict) |
-| Estado global | Redux Toolkit 2 + redux-persist |
-| Navegação | React Navigation 6 (stack + bottom tabs) |
-| Realtime | Socket.IO Client 4 |
-| HTTP | Axios 1.6 |
-| Mapas | @rnmapbox/maps 10 |
-| Push notifications | react-native-onesignal 5 + onesignal-expo-plugin |
-| Internacionalização | i18next + react-i18next (pt-BR, en-US, es) |
-| Validação de schema | Zod 4 |
-| Testes | Jest 29 + @testing-library/react-native 13 + fast-check 4 |
-| Build/distribuição | EAS Build (Expo Application Services) |
-| Node mínimo | 18 |
+| Camada              | Tecnologia                                                |
+|---------------------|-----------------------------------------------------------|
+| Framework mobile    | React Native 0.81 + Expo SDK 54                           |
+| Linguagem           | TypeScript 5.9 (strict)                                   |
+| Estado global       | Redux Toolkit 2 + redux-persist                           |
+| Navegação           | React Navigation 6 (stack + bottom tabs)                  |
+| Realtime            | Socket.IO Client 4                                        |
+| HTTP                | Axios 1.6                                                 |
+| Mapas               | @rnmapbox/maps 10                                         |
+| Push notifications  | react-native-onesignal 5 + onesignal-expo-plugin          |
+| Internacionalização | i18next + react-i18next (pt-BR, en-US, es)                |
+| Validação de schema | Zod 4                                                     |
+| Testes              | Jest 29 + @testing-library/react-native 13 + fast-check 4 |
+| Build/distribuição  | EAS Build (Expo Application Services)                     |
+| Node mínimo         | 18                                                        |
 
 ---
 

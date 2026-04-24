@@ -3,8 +3,8 @@
  * Renova o token automaticamente se necessário
  */
 
-import { useCallback } from 'react';
-import { apiService } from '@/services/api';
+import {useCallback} from 'react';
+import {apiService} from '@/services/api';
 
 /**
  * Hook que retorna uma função para garantir token válido antes de ações
@@ -15,11 +15,11 @@ import { apiService } from '@/services/api';
  * 
  * const handleAction = async () => {
  *   await ensureToken();
- *   // Sua ação aqui
+ *   // a sua ação aqui
  * };
  */
 export const useTokenRefresh = () => {
-  const ensureToken = useCallback(async (): Promise<boolean> => {
+  return useCallback(async (): Promise<boolean> => {
     try {
       return await apiService.ensureValidToken();
     } catch (error) {
@@ -27,7 +27,5 @@ export const useTokenRefresh = () => {
       return false;
     }
   }, []);
-
-  return ensureToken;
 };
 
