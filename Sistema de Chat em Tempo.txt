@@ -1,0 +1,717 @@
+Sistema de Chat em Tempo Real
+Sumário
+1. Visão Geral
+2. Arquitetura
+3. Protocolos e Tecnologias
+4. Autenticação e Segurança
+5. WebSocket
+6. RabbitMQ Message Broker
+7. Redis Cache
+8. Rate Limiting
+9. Garantia de Entrega
+10. Retry e DLQ
+11. Status de Entrega e Leitura
+12. Badge Count (Mensagens Não Lidas)
+13. Status Online
+14. Reconexão Automática
+15. Graceful Degradation (Long Polling)
+16. Lazy Loading
+17. API REST (Fallback)
+18. Mensagens WebSocket
+19. Exemplos de Uso
+20. Troubleshooting
+1. Visão Geral
+O sistema de chat permite comunicação em tempo real entre motoristas e passageiros durante uma
+corrida ativa. O chat é habilitado automaticamente quando uma corrida é aceita pelo motorista e
+permanece disponível até a conclusão ou cancelamento da corrida.
+Características Principais
+Tempo Real: WebSocket para comunicação bidirecional instantânea
+Garantia de Entrega: Mensagens são persistidas e entregues mesmo se o destinatário estiver
+offlineStatus de Entrega: Confirmação de entrega e leitura
+Badge Count: Contador de mensagens não lidas por corrida
+Status Online: Rastreamento de presença em tempo real
+Rate Limiting: Proteção contra spam e abuso
+Retry Automático: Tentativas automáticas com exponential backoff
+DLQ: Dead Letter Queue para mensagens que falharam após múltiplas tentativas
+Graceful Degradation: Fallback para long polling quando WebSocket não está disponível
+Lazy Loading: Carregamento sob demanda de histórico de mensagens
+Cache Redis: Mensagens recentes em cache para performance
+2. Arquitetura
+Componentes Principais
+┌─────────────┐
+│Cliente│
+│(Web/Mob)│
+└──────┬──────┘
+│
+│ WebSocket (primário) / Long Polling (fallback)
+│
+┌──────▼──────────────────────────────────────┐
+│
+API Gateway / Load Balancer
+│
+└──────┬──────────────────────────────────────┘
+│
+│
+┌──────▼──────────────────────────────────────┐
+│
+Spring Boot Application
+│
+│┌──────────────────────────────────────┐│││WebSocket Handlers││
+││- DriverChatHandler││
+││- PassengerChatHandler││
+│└──────────────────────────────────────┘││┌──────────────────────────────────────┐│││Chat Service││
+││- Envio de mensagens││││- Entrega e leitura││││- Badge count│││└──────────────────────────────────────┘││┌──────────────────────────────────────┐│││
+Rate Limiting Service
+││
+│└──────────────────────────────────────┘│
+└──────┬──────────────────────────────────────┘
+│
+├─────────────────┬──────────────────┐
+││┌──────▼──────┐┌──────▼──────┐┌──────▼──────┐
+│PostgreSQL ││RabbitMQ││
+Redis
+│
+│(Mensagens)││(Message││
+(Cache &
+│
+│││Broker)││
+Status)
+│
+└─────────────┘
+│
+└─────────────┘
+└─────────────┘
+Fluxo de Mensagem
+1. Envio: Cliente envia mensagem via WebSocket ou REST API
+2. Validação: Rate limiting e validação de conteúdo
+3. Persistência: Mensagem salva no PostgreSQL
+4. Publicação: Mensagem publicada no RabbitMQ
+5. Entrega: RabbitMQ entrega ao destinatário via WebSocket (se online) ou armazena para entrega
+posterior
+6. Confirmação: Destinatário confirma recebimento
+7. Leitura: Destinatário marca como lida
+8. Cache: Mensagens recentes armazenadas no Redis
+3. Protocolos e Tecnologias
+WebSocket (Primário)
+Protocolo: ws:// ou wss:// (TLS)
+Endpoints:
+Motoristas: /ws/drivers/chat?token={JWT}
+Passageiros: /ws/passengers/chat?token={JWT}
+Formato: JSON
+Reconexão: Automática com exponential backoff
+Long Polling (Fallback)
+Protocolo: HTTP/HTTPS
+Endpoint: GET /v1/chat/messages/poll?rideId={rideId}&timeout=30Timeout: 30 segundos (configurável)
+Uso: Quando WebSocket não está disponível
+RabbitMQ
+Exchange: chat.exchange (Direct)
+Fila Principal: chat.messages
+Fila Retry: chat.messages.retry (TTL: 60s)
+DLQ: chat.messages.dlq
+Exchange Pub/Sub: chat.delivery.exchange (Topic)
+Redis
+Cache de Mensagens: chat:messages:{rideId}:recent (TTL: 1h)
+Status Online: chat:online:{userId} (TTL: 5min)
+Rate Limiting: chat:ratelimit:{userId} (TTL: 1min)
+Badge Count: chat:unread:{userId}:{rideId} (TTL: 24h)
+4. Autenticação e Segurança
+JWT Authentication
+Todas as conexões WebSocket e requisições REST requerem autenticação JWT:
+ws://localhost:8080/ws/drivers/chat?
+token=eyJraWQiOiJrZXktMSIsImFsZyI6IlJTMjU2In0...
+Validação de Corrida
+Apenas motorista e passageiro da corrida podem trocar mensagens
+Validação realizada no servidor antes de processar mensagens
+Mensagens de corridas finalizadas/canceladas são rejeitadas
+Rate Limiting
+Limite: 30 mensagens por minuto por usuário
+Burst: Até 10 mensagens em 1 segundo
+Penalidade: Bloqueio temporário após exceder limite5. WebSocket
+Conexão
+Motorista
+const token = 'eyJraWQiOiJrZXktMSIsImFsZyI6IlJTMjU2In0...';
+const ws = new WebSocket(`ws://localhost:8080/ws/drivers/chat?token=${tok
+ws.onopen = () => {
+console.log('Conexão WebSocket estabelecida');
+};
+ws.onmessage = (event) => {
+const message = JSON.parse(event.data);
+handleMessage(message);
+};
+ws.onerror = (error) => {
+console.error('Erro WebSocket:', error);
+// Implementar reconexão com exponential backoff
+};
+ws.onclose = (event) => {
+console.log('Conexão fechada:', event.code, event.reason);
+// Implementar reconexão
+};
+Passageiro
+const token = 'eyJraWQiOiJrZXktMSIsImFsZyI6IlJTMjU2In0...';
+const ws = new WebSocket(`ws://localhost:8080/ws/passengers/chat?token=${
+Mensagens Enviadas pelo Cliente
+Enviar Mensagem
+{
+"type": "chat_message","data": {
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho."
+}
+}
+Marcar como Lida
+{
+"type": "mark_read",
+"data": {
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"messageIds": ["019ae45a-01ff-b967-b2f7-4c22c46ecd75"]
+}
+}
+Heartbeat
+{
+"type": "heartbeat"
+}
+Mensagens Recebidas do Servidor
+Nova Mensagem
+{
+"type": "chat_message",
+"data": {
+"id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"senderId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"recipientId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho.",
+"deliveryStatus": "DELIVERED",
+"deliveredAt": "2025-12-04T10:25:00Z",
+"createdAt": "2025-12-04T10:20:00Z"
+}
+}Confirmação de Entrega
+{
+"type": "delivery_confirmed",
+"data": {
+"messageId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"deliveryStatus": "DELIVERED",
+"deliveredAt": "2025-12-04T10:25:00Z"
+}
+}
+Confirmação de Leitura
+{
+"type": "read_confirmed",
+"data": {
+"messageId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"readAt": "2025-12-04T10:30:00Z"
+}
+}
+Badge Count Atualizado
+{
+"type": "unread_count",
+"data": {
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"unreadCount": 5
+}
+}
+Status Online
+{
+"type": "user_online_status",
+"data": {
+"userId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"isOnline": true,
+"lastSeenAt": "2025-12-04T10:30:00Z"}
+}
+Erro
+{
+"type": "error",
+"data": {
+"message": "Rate limit exceeded. Please wait before sending more mess
+"code": "RATE_LIMIT_EXCEEDED"
+}
+}
+6. RabbitMQ Message Broker
+Configuração
+Exchange Principal (Direct)
+Nome: chat.exchange
+Tipo: Direct
+Durabilidade: Sim
+Filas
+1. Fila Principal: chat.messages
+DLX: chat.exchange
+DLK: chat.messages.retry
+2. Fila Retry: chat.messages.retry
+TTL: 60 segundos
+DLX: chat.exchange
+DLK: chat.messages
+3. DLQ: chat.messages.dlq
+Mensagens que falharam após 3 tentativas
+Exchange Pub/Sub (Topic)Nome: chat.delivery.exchange
+Tipo: Topic
+Routing Keys:
+chat.delivery.user.{userId} - Notificações de entrega para usuário específico
+Mensagens RabbitMQ
+ChatMessage (Envio)
+{
+"id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"ride_id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"sender_id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"recipient_id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho.",
+"created_at": "2025-12-04T10:20:00Z"
+}
+DeliveryNotification (Pub/Sub)
+{
+"message_id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"recipient_id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"delivery_status": "DELIVERED",
+"timestamp": "2025-12-04T10:25:00Z"
+}
+Retry Logic
+1. Mensagem falha ao entregar → vai para chat.messages.retry
+2. Após 60s, mensagem retorna para chat.messages
+3. Processo se repete até 3 tentativas
+4. Após 3 tentativas, mensagem vai para DLQ
+7. Redis Cache
+Estrutura de ChavesMensagens Recentes
+chat:messages:{rideId}:recent
+- Tipo: List
+- TTL: 1 hora
+- Conteúdo: JSON array de mensagens (últimas 50)
+Status Online
+chat:online:{userId}
+- Tipo: String ("true" ou "false")
+- TTL: 5 minutos
+- Atualizado a cada heartbeat
+Rate Limiting
+chat:ratelimit:{userId}
+- Tipo: String (contador)
+- TTL: 1 minuto
+- Incrementado a cada mensagem
+Badge Count
+chat:unread:{userId}:{rideId}
+- Tipo: String (número)
+- TTL: 24 horas
+- Sincronizado com banco de dados
+Operações
+Cachear Mensagem
+redisTemplate.opsForList().leftPush(
+"chat:messages:" + rideId + ":recent",
+messageJson
+);
+redisTemplate.expire("chat:messages:" + rideId + ":recent", 1, TimeUnit.H
+Obter Mensagens RecentesList<String> messages = redisTemplate.opsForList().range(
+"chat:messages:" + rideId + ":recent",
+0, 49
+);
+8. Rate Limiting
+Limites
+Mensagens por minuto: 30
+Burst: 10 mensagens em 1 segundo
+Janela de tempo: 60 segundos
+Implementação
+Usa Redis com sliding window:
+String key = "chat:ratelimit:" + userId;
+Long count = redisTemplate.opsForValue().increment(key);
+if (count == 1) {
+redisTemplate.expire(key, 60, TimeUnit.SECONDS);
+}
+if (count > 30) {
+throw new RateLimitExceededException();
+}
+Resposta de Erro
+{
+"error": {
+"message": "Rate limit exceeded. Please wait before sending more mess
+"code": "RATE_LIMIT_EXCEEDED",
+"retryAfter": 45
+}
+}9. Garantia de Entrega
+Persistência
+Todas as mensagens são persistidas no PostgreSQL antes de serem publicadas no RabbitMQ:
+1. Mensagem salva com status SENDING
+2. Publicada no RabbitMQ
+3. Se destinatário estiver online, entrega imediata via WebSocket
+4. Status atualizado para DELIVERED
+5. Se destinatário estiver offline, mensagem fica pendente
+6. Quando destinatário se conecta, recebe todas as mensagens pendentes
+Confirmação de Entrega
+Destinatário confirma recebimento via WebSocket
+Status atualizado para DELIVERED
+deliveredAt preenchido
+Confirmação de Leitura
+Destinatário marca mensagem como lida
+Status atualizado para READ
+readAt preenchido
+Badge count decrementado
+10. Retry e DLQ
+Retry Logic
+1. Tentativa 1: Mensagem enviada imediatamente
+2. Falha: Mensagem vai para chat.messages.retry (TTL: 60s)
+3. Tentativa 2: Após 60s, mensagem retorna para chat.messages
+4. Falha: Vai para retry novamente
+5. Tentativa 3: Última tentativa
+6. Falha: Mensagem vai para DLQ
+Exponential Backoff (Reconexão WebSocket)let reconnectDelay = 1000; // 1 segundo
+const maxDelay = 60000; // 60 segundos
+function reconnect() {
+setTimeout(() => {
+connectWebSocket();
+reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+}, reconnectDelay);
+}
+DLQ (Dead Letter Queue)
+Mensagens na DLQ requerem intervenção manual:
+Logs detalhados de erro
+Notificação para administradores
+Possibilidade de reprocessamento manual
+11. Status de Entrega e Leitura
+Status Possíveis
+SENDING: Mensagem sendo enviada (ainda não confirmada)
+DELIVERED: Mensagem entregue ao destinatário
+READ: Mensagem lida pelo destinatário
+FAILED: Falha ao entregar (irá para DLQ)
+Fluxo
+1. Mensagem criada → SENDING
+2. Publicada no RabbitMQ
+3. Se destinatário online → entrega via WebSocket → DELIVERED
+4. Destinatário lê → READ
+Timestamps
+createdAt : Quando mensagem foi criada
+deliveredAt : Quando mensagem foi entreguereadAt : Quando mensagem foi lida
+12. Badge Count (Mensagens Não Lidas)
+Cálculo
+Contador de mensagens com status SENDING ou DELIVERED para um usuário em uma corrida
+específica.
+Atualização
+Incrementado quando nova mensagem é entregue
+Decrementado quando mensagem é marcada como lida
+Sincronizado entre Redis e PostgreSQL
+API
+GET /v1/chat/messages/unread?rideId={rideId}
+Resposta:
+{
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"unreadCount": 5
+}
+Notificação WebSocket
+Quando badge count muda, cliente recebe notificação:
+{
+"type": "unread_count",
+"data": {
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"unreadCount": 5
+}
+}13. Status Online
+Rastreamento
+Atualizado a cada heartbeat (30 segundos)
+Armazenado em Redis (TTL: 5 minutos)
+Sincronizado com PostgreSQL
+Heartbeat
+Cliente envia heartbeat a cada 30 segundos:
+{
+"type": "heartbeat"
+}
+Servidor atualiza lastSeenAt e isOnline .
+Offline Detection
+Se não receber heartbeat por 2 minutos → isOnline = false
+lastSeenAt atualizado com último heartbeat recebido
+Notificação de Mudança de Status
+Quando status online muda, outro participante recebe notificação:
+{
+"type": "user_online_status",
+"data": {
+"userId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"isOnline": true,
+"lastSeenAt": "2025-12-04T10:30:00Z"
+}
+}
+14. Reconexão AutomáticaExponential Backoff
+class ChatWebSocket {
+constructor(url, token) {
+this.url = url;
+this.token = token;
+this.reconnectDelay = 1000;
+this.maxDelay = 60000;
+this.connect();
+}
+connect() {
+this.ws = new WebSocket(`${this.url}?token=${this.token}`);
+this.ws.onopen = () => {
+console.log('Conectado');
+this.reconnectDelay = 1000; // Reset delay
+};
+this.ws.onerror = (error) => {
+console.error('Erro:', error);
+};
+this.ws.onclose = (event) => {
+console.log('Desconectado:', event.code);
+this.reconnect();
+};
+}
+reconnect() {
+setTimeout(() => {
+console.log(`Tentando reconectar em ${this.reconnectDelay}ms.
+this.connect();
+this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.
+}, this.reconnectDelay);
+}
+}
+Delay Inicial e Máximo
+Delay inicial: 1 segundo
+Delay máximo: 60 segundosMultiplicador: 2x a cada tentativa
+15. Graceful Degradation (Long Polling)
+Quando Usar
+WebSocket não disponível
+Firewall bloqueia WebSocket
+Cliente não suporta WebSocket
+Endpoint
+GET /v1/chat/messages/poll?rideId={rideId}&timeout=30&cursor={cursor}
+Parâmetros
+rideId (obrigatório): ID da corrida
+timeout (opcional): Timeout em segundos (padrão: 30, máximo: 60)
+cursor (opcional): ID da última mensagem recebida (para paginação)
+Resposta
+{
+"items": [
+{
+"id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"senderId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"recipientId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho.",
+"deliveryStatus": "DELIVERED",
+"deliveredAt": "2025-12-04T10:25:00Z",
+"createdAt": "2025-12-04T10:20:00Z"
+}
+],
+"nextCursor": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"hasMore": false
+}Implementação Cliente
+async function pollMessages(rideId, cursor = null) {
+const timeout = 30;
+const url = `/v1/chat/messages/poll?rideId=${rideId}&timeout=${timeou
+try {
+const response = await fetch(url);
+const data = await response.json();
+if (data.items.length > 0) {
+handleMessages(data.items);
+cursor = data.nextCursor;
+}
+// Poll novamente
+pollMessages(rideId, cursor);
+} catch (error) {
+console.error('Erro no polling:', error);
+setTimeout(() => pollMessages(rideId, cursor), 5000);
+}
+}
+16. Lazy Loading
+Histórico de Mensagens
+Mensagens são carregadas sob demanda usando cursor pagination:
+GET /v1/chat/messages?rideId={rideId}&limit=50&cursor={cursor}
+Resposta
+{
+"items": [...],
+"nextCursor": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"prevCursor": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"hasMore": true,
+"totalCount": 150
+}Cache
+Mensagens recentes (últimas 50) em Redis
+Carregamento inicial usa cache
+Scroll para cima carrega histórico do banco
+17. API REST (Fallback)
+Endpoints
+Enviar Mensagem
+POST /v1/chat/messages
+Authorization: Bearer {JWT}
+Content-Type: application/json
+{
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho."
+}
+Resposta:
+{
+"id": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"senderId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"recipientId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"content": "Olá! Estou a caminho.",
+"deliveryStatus": "SENDING",
+"createdAt": "2025-12-04T10:20:00Z"
+}
+Listar Mensagens
+GET /v1/chat/messages?rideId={rideId}&limit=50&cursor={cursor}
+Marcar como LidaPOST /v1/chat/messages/read
+Authorization: Bearer {JWT}
+Content-Type: application/json
+{
+"rideId": "019ae45a-01ff-b967-b2f7-4c22c46ecd75",
+"messageIds": ["019ae45a-01ff-b967-b2f7-4c22c46ecd75"]
+}
+Badge Count
+GET /v1/chat/messages/unread?rideId={rideId}
+Status Online
+GET /v1/chat/users/{userId}/online-status
+18. Mensagens WebSocket
+Tipos de Mensagem
+Cliente → Servidor
+chat_message : Enviar mensagem
+mark_read : Marcar mensagens como lidas
+heartbeat : Manter conexão viva
+Servidor → Cliente
+chat_message : Nova mensagem recebida
+delivery_confirmed : Confirmação de entrega
+read_confirmed : Confirmação de leitura
+unread_count : Badge count atualizado
+user_online_status : Status online atualizado
+error : Erro (rate limit, validação, etc.)
+Estrutura
+{
+"type": "chat_message","data": { ... }
+}
+19. Exemplos de Uso
+Exemplo Completo (JavaScript)
+class ChatClient {
+constructor(token, userId) {
+this.token = token;
+this.userId = userId;
+this.ws = null;
+this.reconnectDelay = 1000;
+this.maxDelay = 60000;
+}
+connect() {
+const url = `ws://localhost:8080/ws/passengers/chat?token=${this.
+this.ws = new WebSocket(url);
+this.ws.onopen = () => {
+console.log('Conectado ao chat');
+this.startHeartbeat();
+};
+this.ws.onmessage = (event) => {
+const message = JSON.parse(event.data);
+this.handleMessage(message);
+};
+this.ws.onerror = (error) => {
+console.error('Erro WebSocket:', error);
+};
+this.ws.onclose = (event) => {
+console.log('Desconectado:', event.code);
+this.stopHeartbeat();
+this.reconnect();
+};
+}sendMessage(rideId, content) {
+const message = {
+type: 'chat_message',
+data: {
+rideId: rideId,
+content: content
+}
+};
+this.ws.send(JSON.stringify(message));
+}
+markAsRead(rideId, messageIds) {
+const message = {
+type: 'mark_read',
+data: {
+rideId: rideId,
+messageIds: messageIds
+}
+};
+this.ws.send(JSON.stringify(message));
+}
+handleMessage(message) {
+switch (message.type) {
+case 'chat_message':
+this.onNewMessage(message.data);
+break;
+case 'delivery_confirmed':
+this.onDeliveryConfirmed(message.data);
+break;
+case 'read_confirmed':
+this.onReadConfirmed(message.data);
+break;
+case 'unread_count':
+this.onUnreadCountUpdated(message.data);
+break;
+case 'user_online_status':
+this.onOnlineStatusUpdated(message.data);
+break;
+case 'error':
+this.onError(message.data);
+break;
+}
+}onNewMessage(data) {
+console.log('Nova mensagem:', data);
+// Exibir mensagem na UI
+}
+onDeliveryConfirmed(data) {
+console.log('Entrega confirmada:', data.messageId);
+// Atualizar UI
+}
+onReadConfirmed(data) {
+console.log('Leitura confirmada:', data.messageId);
+// Atualizar UI
+}
+onUnreadCountUpdated(data) {
+console.log('Badge count:', data.unreadCount);
+// Atualizar badge
+}
+onOnlineStatusUpdated(data) {
+console.log('Status online:', data.isOnline);
+// Atualizar indicador de status
+}
+onError(data) {
+console.error('Erro:', data.message);
+// Exibir erro na UI
+}
+startHeartbeat() {
+this.heartbeatInterval = setInterval(() => {
+this.ws.send(JSON.stringify({ type: 'heartbeat' }));
+}, 30000); // 30 segundos
+}
+stopHeartbeat() {
+if (this.heartbeatInterval) {
+clearInterval(this.heartbeatInterval);
+}
+}
+reconnect() {setTimeout(() => {
+console.log(`Reconectando em ${this.reconnectDelay}ms...`);
+this.connect();
+this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.
+}, this.reconnectDelay);
+}
+}
+// Uso
+const chat = new ChatClient(token, userId);
+chat.connect();
+// Enviar mensagem
+chat.sendMessage(rideId, 'Olá! Estou a caminho.');
+// Marcar como lida
+chat.markAsRead(rideId, [messageId]);
+20. Troubleshooting
+Problemas Comuns
+WebSocket não conecta
+Verificar token JWT válido
+Verificar CORS configurado
+Verificar firewall/proxy
+Mensagens não chegam
+Verificar se destinatário está online
+Verificar logs do RabbitMQ
+Verificar DLQ para mensagens falhadas
+Rate limit excedido
+Aguardar 1 minuto
+Reduzir frequência de envio
+Badge count incorreto
+Sincronizar com banco de dadosLimpar cache Redis se necessário
+Logs
+WebSocket: com.joaoflavio.vamu.chat.websocket
+RabbitMQ: com.joaoflavio.vamu.chat.message
+Service: com.joaoflavio.vamu.chat.service
+Changelog
+v1.0.0 (2025-12-04)
+Implementação inicial do sistema de chat
+WebSocket para comunicação em tempo real
+RabbitMQ como message broker
+Redis para cache e status online
+Rate limiting
+Garantia de entrega
+Retry e DLQ
+Status de entrega e leitura
+Badge count
+Reconexão automática
+Long polling fallback
+Lazy loading

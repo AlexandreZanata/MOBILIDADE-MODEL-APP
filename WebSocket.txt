@@ -1,0 +1,375 @@
+Documentação WebSocket - Sistema de Rastreamento de Motoristas
+Visão Geral
+O sistema de WebSocket permite que motoristas se conectem em tempo real para enviar atualizações de localização, manter a conexão ativa através de heartbeat e
+gerenciar seu status operacional. O sistema utiliza Redis GEO para armazenar posições e H3 para indexação espacial.
+Endpoint
+ws://host:port/ws/drivers?token=<JWT_TOKEN>
+Autenticação
+Método: Query Parameter
+Parâmetro: token
+Tipo : JWT Access Token
+Requisito: Token válido com role driver
+Exemplo de Conexão
+const token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...";
+const ws = new WebSocket(`ws://localhost:8080/ws/drivers?token=${token}`);
+Mensagens Enviadas pelo Cliente
+1. Atualização de Localização
+Envia a posição atual do motorista. Deve ser enviada a cada 2-5 segundos.
+Formato:
+{
+"type": "location_update",
+"lat": -23.5505,
+"lng": -46.6333,
+"heading": 90.0,
+"speed": 45.5
+}
+Campos:
+type (string, obrigatório): Sempre "location_update"
+lat (number, obrigatório): Latitude em graus decimais (-90 a 90)
+lng (number, obrigatório): Longitude em graus decimais (-180 a 180)
+heading (number, opcional): Direção em graus (0-360)
+speed (number, opcional): Velocidade em km/h
+Resposta de Sucesso:
+{
+"type": "location_update",
+"message": "Localização atualizada com sucesso"
+}
+Comportamento:
+Atualiza a posição no Redis GEO
+Adiciona o motorista à célula H3 correspondente
+Atualiza automaticamente o heartbeat (TTL de 10 segundos)
+Remove automaticamente das células H3 antigas quando expira
+2. Heartbeat
+Mantém a conexão ativa. Deve ser enviado periodicamente se não houver atualizações de localização.
+Formato:{
+"type": "heartbeat"
+}
+Resposta:
+{
+"type": "pong",
+"message": "Heartbeat recebido"
+}
+Comportamento:
+Renova o TTL das chaves de conexão e status
+Se não receber heartbeat em 15 segundos, o motorista é marcado como offline automaticamente
+3. Atualização de Status Operacional
+Atualiza o status operacional do motorista (disponível, ocupado, pausado, offline).
+Formato:
+{
+"type": "status_update",
+"status": "AVAILABLE"
+}
+Valores Válidos:
+AVAILABLE : Motorista disponível e aceitando corridas
+BUSY : Motorista ocupado com uma corrida ativa
+PAUSED : Motorista pausado/não disponível temporariamente
+OFFLINE : Motorista offline manualmente
+Resposta de Sucesso:
+{
+"type": "status_updated",
+"message": "Status atualizado com sucesso"
+}
+Resposta de Erro:
+{
+"type": "error",
+"message": "Status inválido: INVALID_STATUS"
+}
+Mensagens Recebidas pelo Cliente
+Conexão Estabelecida
+Enviada automaticamente quando a conexão é estabelecida com sucesso.
+{
+"type": "connected",
+"message": "Conexão estabelecida com sucesso"
+}
+Respostas de Sucesso
+Todas as mensagens enviadas pelo cliente recebem uma resposta de confirmação:{
+"type": "<tipo_da_acao>",
+"message": "Mensagem de confirmação"
+}
+Respostas de Erro
+Em caso de erro, o servidor envia:
+{
+"type": "error",
+"message": "Descrição do erro"
+}
+Estados do Motorista
+O sistema gerencia dois tipos de estado:
+1. Estado de Conexão (Controlado pelo Sistema)
+Online : Motorista conectado via WebSocket e com heartbeat recente (< 15s)
+Offline: Motorista desconectado ou sem heartbeat há mais de 15 segundos
+Regras:
+Conexão estabelecida → online = true
+Sem mensagens em 15s → online = false (automático)
+Socket fechado → online = false (automático)
+2. Estado Operacional (Controlado pelo Motorista)
+AVAILABLE : Motorista disponível e aceitando corridas
+BUSY : Motorista ocupado com corrida ativa
+PAUSED: Motorista pausado temporariamente
+OFFLINE : Motorista offline manualmente
+Regras:
+Pode ser alterado via WebSocket ( status_update ) ou REST API
+Persiste no Redis com TTL de 24 horas
+Default é OFFLINE se não estiver definido
+Recebimento de Corridas
+Um motorista só recebe corridas se:
+online = true (conectado + heartbeat recente)
+operationalStatus = AVAILABLE
+Estrutura Redis
+Chaves Utilizadasdrivers_live (GEO)
+→ Armazena posições dos motoristas usando Redis GEO
+→ Chave: "drivers_live"
+→ Valor: GeoLocation com driverId como membro
+drivers_status:{driverId}
+→ Status de conexão (online/offline)
+→ Valor: "online"
+→ TTL: 10 segundos
+drivers_connection:{driverId}
+→ Indica conexão WebSocket ativa
+→ Valor: "connected"
+→ TTL: 20 segundos (renovado a cada heartbeat)
+drivers_operational_status:{driverId}
+→ Status operacional do motorista
+→ Valor: "AVAILABLE" | "BUSY" | "PAUSED" | "OFFLINE"
+→ TTL: 24 horas
+h3:cell:{h3Index}
+→ Conjunto de motoristas em uma célula H3
+→ Tipo: Set
+→ Membros: driverId (String)
+→ TTL: 12 segundos
+H3 Indexação Espacial
+Resolução: 9 (células de ~0.5km)
+Uso: Indexação rápida de motoristas por região geográfica
+Atualização: Automática a cada location_update
+Expiração : Automática após 12 segundos sem atualização
+Endpoints REST Relacionados
+GET /v1/drivers/operational-status
+Obtém o status operacional e de conexão do motorista autenticado.
+Resposta:
+{
+"operationalStatus": "AVAILABLE",
+"isOnline": true,
+"canReceiveRides": true
+}
+PATCH /v1/drivers/operational-status
+Atualiza o status operacional do motorista.
+Request:
+{
+"status": "AVAILABLE"
+}
+Resposta:
+{
+"operationalStatus": "AVAILABLE",
+"isOnline": true,
+"canReceiveRides": true
+}Fluxo de Funcionamento
+1. Conexão Inicial
+Cliente → ws://host/ws/drivers?token=<JWT>
+↓
+Interceptor valida JWT e verifica role "driver"
+↓
+Handler marca motorista como online
+↓
+Cria chaves no Redis (status, connection)
+↓
+Envia mensagem "connected"
+2. Atualização de Localização
+Cliente → {"type": "location_update", "lat": ..., "lng": ...}
+↓
+Handler processa mensagem
+↓
+Atualiza Redis GEO (drivers_live)
+↓
+Calcula célula H3
+↓
+Adiciona motorista à célula H3
+↓
+Atualiza heartbeat (TTL)
+↓
+Responde com confirmação
+3. Heartbeat
+Cliente → {"type": "heartbeat"}
+↓
+Handler processa mensagem
+↓
+Renova TTL das chaves (status, connection)
+↓
+Responde com "pong"
+4. Desconexão
+Cliente fecha conexão ou timeout
+↓
+Handler detecta desconexão
+↓
+Remove do Redis GEO
+↓
+Remove das células H3 (expiração automática)
+↓
+Marca como offline
+Segurança
+Autenticação
+JWT obrigatório: Token deve ser válido e não expirado
+Role validation: Apenas usuários com role driver podem conectar
+UUID do token : O ID do motorista é extraído do token (não confia no cliente)Validações
+Token deve estar presente na query string
+Token deve ser válido (assinatura, expiração, issuer, audience)
+Usuário deve ter role driver
+Motorista deve existir e não estar deletado
+Proteção contra Ataques
+Múltiplas conexões: Se um motorista já está conectado, a conexão anterior é fechada
+TTL automático : Chaves expiram automaticamente, prevenindo dados órfãos
+Validação de dados: Latitude/longitude são validados antes de processar
+Exemplo de Implementação Cliente (JavaScript)
+class DriverWebSocketClient {
+constructor(token, baseUrl = 'ws://localhost:8080') {
+this.token = token;
+this.baseUrl = baseUrl;
+this.ws = null;
+this.heartbeatInterval = null;
+this.locationUpdateInterval = null;
+}
+connect() {
+const url = `${this.baseUrl}/ws/drivers?token=${this.token}`;
+this.ws = new WebSocket(url);
+this.ws.onopen = () => {
+console.log('WebSocket conectado');
+this.startHeartbeat();
+this.startLocationUpdates();
+};
+this.ws.onmessage = (event) => {
+const message = JSON.parse(event.data);
+this.handleMessage(message);
+};
+this.ws.onerror = (error) => {
+console.error('Erro WebSocket:', error);
+};
+this.ws.onclose = () => {
+console.log('WebSocket desconectado');
+this.stopHeartbeat();
+this.stopLocationUpdates();
+};
+}
+startHeartbeat() {
+// Enviar heartbeat a cada 10 segundos
+this.heartbeatInterval = setInterval(() => {
+this.send({
+type: 'heartbeat'
+});
+}, 10000);
+}
+stopHeartbeat() {
+if (this.heartbeatInterval) {
+clearInterval(this.heartbeatInterval);
+this.heartbeatInterval = null;
+}
+}
+startLocationUpdates() {startLocationUpdates() {
+// Atualizar localização a cada 3 segundos
+this.locationUpdateInterval = setInterval(() => {
+navigator.geolocation.getCurrentPosition((position) => {
+this.send({
+type: 'location_update',
+lat: position.coords.latitude,
+lng: position.coords.longitude,
+heading: position.coords.heading || null,
+speed: position.coords.speed ? position.coords.speed * 3.6 : null // m/s para km/h
+});
+});
+}, 3000);
+}
+stopLocationUpdates() {
+if (this.locationUpdateInterval) {
+clearInterval(this.locationUpdateInterval);
+this.locationUpdateInterval = null;
+}
+}
+updateStatus(status) {
+this.send({
+type: 'status_update',
+status: status
+});
+}
+send(message) {
+if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+this.ws.send(JSON.stringify(message));
+}
+}
+handleMessage(message) {
+switch (message.type) {
+case 'connected':
+console.log('Conexão estabelecida:', message.message);
+break;
+case 'location_updated':
+console.log('Localização atualizada');
+break;
+case 'pong':
+console.log('Heartbeat confirmado');
+break;
+case 'status_updated':
+console.log('Status atualizado');
+break;
+case 'error':
+console.error('Erro:', message.message);
+break;
+}
+}
+disconnect() {
+this.stopHeartbeat();
+this.stopLocationUpdates();
+if (this.ws) {
+this.ws.close();
+}
+}
+}
+// Uso
+const client = new DriverWebSocketClient('seu-jwt-token-aqui');const client = new DriverWebSocketClient('seu-jwt-token-aqui');
+client.connect();
+// Atualizar status
+client.updateStatus('AVAILABLE');
+// Desconectar
+// client.disconnect();
+Troubleshooting
+Problema: Conexão rejeitada
+Possíveis causas:
+Token inválido ou expirado
+Token sem role driver
+Motorista não existe ou está deletado
+Solução:
+Verificar se o token está válido
+Verificar se o usuário tem role driver
+Verificar se o motorista está ativo
+Problema: Motorista fica offline mesmo conectado
+Possíveis causas:
+Heartbeat não está sendo enviado
+Intervalo de heartbeat muito longo (> 15s)
+Problemas de rede
+Solução:
+Garantir que heartbeat é enviado a cada 10 segundos
+Verificar conectividade de rede
+Verificar logs do servidor
+Problema: Localização não atualiza
+Possíveis causas:
+Formato de mensagem incorreto
+Latitude/longitude inválidas
+Motorista não existe
+Solução:
+Verificar formato JSON da mensagem
+Validar coordenadas (lat: -90 a 90, lng: -180 a 180)
+Verificar logs do servidor
+Limites e Considerações
+Performance
+Heartbeat: Recomendado a cada 10 segundos
+Location updates: Recomendado a cada 2-5 segundos
+TTL: Configurado para expiração automática após 15s sem heartbeat
+Escalabilidade
+Sistema suporta múltiplas conexões simultâneas
+Redis GEO otimizado para buscas geográficas
+H3 permite indexação eficiente por região
+Monitoramento
+Logs de conexão/desconexão
+Métricas de heartbeat
+Status de motoristas online/offline
+Changelogv1.0.0 (2025-12-01)
+Implementação inicial do sistema WebSocket
+Suporte a localização em tempo real
+Sistema de heartbeat
+Gerenciamento de status operacional
+Integração com Redis GEO e H3
