@@ -19,6 +19,8 @@ interface UseHomeParams {
   navigation: StackNavigationProp<Record<string, object | undefined>>;
   /** ID of the payment method selected in the inline sheet */
   selectedPaymentMethodId: string | null;
+  /** ID of the card brand selected (required when method is credit/debit) */
+  selectedCardBrandId: string | null;
 }
 
 const SORRISO_LOCATION: HomeLocation = { lat: -12.5458, lon: -55.7061 };
@@ -57,7 +59,7 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
 }
 
-export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) {
+export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrandId }: UseHomeParams) {
   const { user } = useAuth();
   const { activeTrip, isLoading: isTripLoading } = useTrip();
   const ensureToken = useTokenRefresh();
@@ -363,6 +365,7 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
       estimateId: freshEstimateId,
       serviceCategoryId: selectedCategoryId,
       paymentMethodId: selectedPaymentMethodId,
+      cardBrandId: selectedCardBrandId ?? undefined,
     });
 
     // If the server still rejects the estimate (race condition), renew once and retry
@@ -373,6 +376,7 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
           estimateId: retryEstimateId,
           serviceCategoryId: selectedCategoryId,
           paymentMethodId: selectedPaymentMethodId,
+          cardBrandId: selectedCardBrandId ?? undefined,
         });
       }
     }
@@ -401,6 +405,7 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
     navigation,
     renewEstimate,
     rideCategories,
+    selectedCardBrandId,
     selectedCategoryId,
     selectedDestination,
     selectedPaymentMethodId,

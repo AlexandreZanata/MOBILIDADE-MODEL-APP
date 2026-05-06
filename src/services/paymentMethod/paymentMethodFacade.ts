@@ -90,18 +90,49 @@ class PaymentMethodFacade {
 
   async createRide(payload: CreateRidePayload): Promise<PaymentMethodResult<CreatedRideData>> {
     const response = await paymentMethodService.createRide(payload);
+
+    // Debug: log the raw response to understand what the API returns
+    console.log('[PaymentFacade] createRide raw response:', JSON.stringify({
+      success: response.success,
+      status: response.status,
+      data: response.data,
+      error: response.error,
+      message: response.message,
+    }));
+
     if (!response.success) {
       const meta = parseCreateRideErrorInfo(response.data);
       return requestFailed(response.message ?? response.error ?? 'Falha ao criar corrida.', response.status, meta);
     }
 
+    // The API returns the ride object directly on 201.
+    // Accept any truthy data — do not throw on schema mismatch.
+    const raw = response.data;
+    if (!raw) {
+      return invalidPayload('Payload de criacao de corrida invalido.', response.status);
+    }
+
     try {
       return {
         success: true,
-        data: parseCreatedRide(response.data),
+        data: parseCreatedRide(raw),
         status: response.status,
       };
-    } catch {
+    } catch (err) {
+      console.log('[PaymentFacade] parseCreatedRide failed:', err, 'raw:', JSON.stringify(raw));
+      // Schema parse failed but we have data — extract id defensively
+      // so the ride flow can still proceed.
+      const fallback = raw as Record<string, unknown>;
+      const id = typeof fallback.id === 'string' ? fallback.id
+        : typeof fallback.trip_id === 'string' ? fallback.trip_id
+        : undefined;
+      if (id) {
+        return {
+          success: true,
+          data: { id, trip_id: id, ...fallback } as CreatedRideData,
+          status: response.status,
+        };
+      }
       return invalidPayload('Payload de criacao de corrida invalido.', response.status);
     }
   }

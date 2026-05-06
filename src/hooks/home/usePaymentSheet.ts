@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { PaymentMethod as ApiPaymentMethod, PaymentMethodType } from '@/models/paymentMethod/types';
+import { PaymentBrand, PaymentMethod as ApiPaymentMethod, PaymentMethodType } from '@/models/paymentMethod/types';
 import { UiPaymentMethod } from '@/models/payment/types';
 import { paymentMethodFacade } from '@/services/paymentMethod/paymentMethodFacade';
 import { tpm } from '@/i18n/paymentMethod';
@@ -61,28 +61,39 @@ function toUiMethod(api: ApiPaymentMethod): UiPaymentMethod {
 
 export interface UsePaymentSheetResult {
   methods: UiPaymentMethod[];
+  brands: PaymentBrand[];
   selectedMethod: UiPaymentMethod | null;
+  selectedBrandId: string | null;
   isLoading: boolean;
+  isLoadingBrands: boolean;
   hasError: boolean;
   selectMethod: (id: string) => void;
+  selectBrand: (id: string) => void;
 }
 
 /**
- * Loads payment methods from the API and maps them to UI display models.
- * Keeps the selected method in sync so PaymentRow always shows the right icon.
+ * Loads payment methods (and card brands when needed) from the API.
  * Calls `onInitialLoad` once when the first method is auto-selected.
+ * Calls `onBrandChange` whenever the selected brand changes.
  */
 export function usePaymentSheet(
   onInitialLoad?: (methodId: string) => void,
+  onBrandChange?: (brandId: string | null) => void,
 ): UsePaymentSheetResult {
   const [methods, setMethods] = useState<UiPaymentMethod[]>([]);
+  const [brands, setBrands] = useState<PaymentBrand[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
   const [hasError, setHasError] = useState(false);
-  // Stable ref so the callback doesn't re-trigger the effect
+
   const onInitialLoadRef = useRef(onInitialLoad);
   onInitialLoadRef.current = onInitialLoad;
+  const onBrandChangeRef = useRef(onBrandChange);
+  onBrandChangeRef.current = onBrandChange;
 
+  // Load payment methods on mount
   const load = useCallback(async () => {
     setIsLoading(true);
     setHasError(false);
@@ -99,8 +110,6 @@ export function usePaymentSheet(
     setMethods(ui);
     setSelectedId((prev) => {
       const next = prev ?? ui[0]?.id ?? null;
-      // Notify parent about the auto-selected method so it can pass the id
-      // to useHome without requiring the user to open the payment sheet first.
       if (!prev && next) {
         onInitialLoadRef.current?.(next);
       }
@@ -112,13 +121,49 @@ export function usePaymentSheet(
     void load();
   }, [load]);
 
+  // Load card brands when a card method is selected
   const selectedMethod = methods.find((m) => m.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!selectedMethod?.requiresCardBrand) {
+      setBrands([]);
+      setSelectedBrandId(null);
+      onBrandChangeRef.current?.(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingBrands(true);
+
+    paymentMethodFacade.getCardBrands().then((result) => {
+      if (cancelled) return;
+      setIsLoadingBrands(false);
+      if (!result.success || !result.data) return;
+      setBrands(result.data);
+      setSelectedBrandId((prev) => {
+        const next = prev ?? result.data![0]?.id ?? null;
+        onBrandChangeRef.current?.(next);
+        return next;
+      });
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedMethod?.requiresCardBrand, selectedMethod?.id]);
+
+  const selectBrand = useCallback((id: string) => {
+    setSelectedBrandId(id);
+    onBrandChangeRef.current?.(id);
+  }, []);
 
   return {
     methods,
+    brands,
     selectedMethod,
+    selectedBrandId,
     isLoading,
+    isLoadingBrands,
     hasError,
     selectMethod: setSelectedId,
+    selectBrand,
   };
 }

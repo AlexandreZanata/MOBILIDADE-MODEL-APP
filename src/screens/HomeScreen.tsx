@@ -22,7 +22,8 @@ type HomeScreenProps = {
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { colors } = useTheme();
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string | null>(null);
-  const vm = useHome({ navigation, selectedPaymentMethodId });
+  const [selectedCardBrandId, setSelectedCardBrandId] = useState<string | null>(null);
+  const vm = useHome({ navigation, selectedPaymentMethodId, selectedCardBrandId });
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onRequestTrip={vm.requestTrip}
           onLayoutHeight={vm.setCardHeight}
           onPaymentMethodChange={setSelectedPaymentMethodId}
+          onCardBrandChange={setSelectedCardBrandId}
         />
 
         {/* Search results — absolute, below the search bar */}

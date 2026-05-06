@@ -27,10 +27,10 @@ const paymentEstimateSchema = z.object({
   estimateId: z.string(),
 });
 
-const createdRideSchema: z.ZodType<CreatedRideData> = z
+const createdRideSchema = z
   .object({
-    id: z.string().optional(),
-    trip_id: z.string().optional(),
+    id: z.union([z.string(), z.number()]).transform(String).optional(),
+    trip_id: z.union([z.string(), z.number()]).transform(String).optional(),
     estimatedPrice: z.number().optional(),
     estimated_fare: z.number().optional(),
     finalPrice: z.number().optional(),
@@ -90,7 +90,14 @@ export function parsePaymentEstimate(payload: unknown): PaymentEstimate {
 }
 
 export function parseCreatedRide(payload: unknown): CreatedRideData {
-  return createdRideSchema.parse(payload ?? {});
+  // Accept any object — the ride was created successfully on the server.
+  // We only need the id to navigate to WaitingForDriver.
+  if (payload !== null && typeof payload === 'object') {
+    return payload as CreatedRideData;
+  }
+  // Fallback: try Zod parse
+  const result = createdRideSchema.parse(payload ?? {});
+  return result as CreatedRideData;
 }
 
 export function parseCreateRideErrorInfo(payload: unknown): CreateRideErrorInfo {

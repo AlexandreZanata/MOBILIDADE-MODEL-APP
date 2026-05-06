@@ -37,6 +37,8 @@ export interface HomeBottomCardProps {
   onLayoutHeight: (height: number) => void;
   /** Called whenever the user selects a different payment method */
   onPaymentMethodChange: (methodId: string) => void;
+  /** Called whenever the user selects a different card brand (null = not required) */
+  onCardBrandChange: (brandId: string | null) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,15 +62,22 @@ export const HomeBottomCard = memo(function HomeBottomCard({
   onRequestTrip,
   onLayoutHeight,
   onPaymentMethodChange,
+  onCardBrandChange,
 }: HomeBottomCardProps) {
   const { colors, isDark } = useTheme();
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
-  const { selectedMethod, selectMethod } = usePaymentSheet(onPaymentMethodChange);
+  const { selectedMethod, selectedBrandId, selectMethod, selectBrand } =
+    usePaymentSheet(onPaymentMethodChange, onCardBrandChange);
 
   const handleSelectMethod = useCallback((method: UiPaymentMethod) => {
     selectMethod(method.id);
     onPaymentMethodChange(method.id);
   }, [onPaymentMethodChange, selectMethod]);
+
+  const handleSelectBrand = useCallback((brandId: string) => {
+    selectBrand(brandId);
+    onCardBrandChange(brandId);
+  }, [onCardBrandChange, selectBrand]);
 
   const renderChip = useCallback(
     ({ item }: { item: TripCategoryOption }) => (
@@ -167,7 +176,9 @@ export const HomeBottomCard = memo(function HomeBottomCard({
       <PaymentSheet
         visible={paymentSheetVisible}
         selectedId={selectedMethod?.id ?? null}
+        selectedBrandId={selectedBrandId}
         onSelect={handleSelectMethod}
+        onSelectBrand={handleSelectBrand}
         onClose={() => setPaymentSheetVisible(false)}
       />
     </View>

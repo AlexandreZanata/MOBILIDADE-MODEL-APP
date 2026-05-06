@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import {
   Animated,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,12 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { borders, shadows, spacing, typography } from '@/theme';
 import { UiPaymentMethod } from '@/models/payment/types';
+import { PaymentBrand } from '@/models/paymentMethod/types';
 import { usePaymentSheet } from '@/hooks/home/usePaymentSheet';
 import { th } from '@/i18n/home';
 import { tpm } from '@/i18n/paymentMethod';
 
 // ---------------------------------------------------------------------------
-// Skeleton row — shown while methods are loading
+// Skeleton row
 // ---------------------------------------------------------------------------
 
 function SkeletonRow() {
@@ -47,27 +49,63 @@ function SkeletonRow() {
 }
 
 const skeletonStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 56,
-    gap: spacing.md,
-  },
-  icon: {
-    width: 32,
-    height: 32,
-    borderRadius: borders.radiusSmall,
-  },
+  row: { flexDirection: 'row', alignItems: 'center', height: 56, gap: spacing.md },
+  icon: { width: 32, height: 32, borderRadius: borders.radiusSmall },
   textBlock: { flex: 1 },
-  line: {
-    height: 10,
-    borderRadius: 5,
+  line: { height: 10, borderRadius: 5 },
+  radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5 },
+});
+
+// ---------------------------------------------------------------------------
+// BrandChip — single card brand selector
+// ---------------------------------------------------------------------------
+
+interface BrandChipProps {
+  brand: PaymentBrand;
+  isSelected: boolean;
+  onPress: (id: string) => void;
+}
+
+const BrandChip = memo(function BrandChip({ brand, isSelected, onPress }: BrandChipProps) {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      style={[
+        brandStyles.chip,
+        {
+          borderColor: isSelected ? colors.accent : colors.border,
+          backgroundColor: isSelected ? colors.accentSoft : colors.backgroundSecondary,
+        },
+      ]}
+      onPress={() => onPress(brand.id)}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: isSelected }}
+      accessibilityLabel={brand.name}
+    >
+      <Text
+        style={[
+          brandStyles.label,
+          { color: isSelected ? colors.accent : colors.textPrimary },
+        ]}
+      >
+        {brand.name}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+const brandStyles = StyleSheet.create({
+  chip: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderRadius: borders.radiusMedium,
+    marginRight: spacing.sm,
+    marginBottom: spacing.sm,
   },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
+  label: {
+    ...typography.caption,
+    fontWeight: '500',
   },
 });
 
@@ -78,35 +116,35 @@ const skeletonStyles = StyleSheet.create({
 export interface PaymentSheetProps {
   visible: boolean;
   selectedId: string | null;
+  selectedBrandId: string | null;
   onSelect: (method: UiPaymentMethod) => void;
+  onSelectBrand: (brandId: string) => void;
   onClose: () => void;
 }
 
 /**
- * Full-screen modal overlay for payment method selection.
- * Data is loaded eagerly (before the modal opens) via usePaymentSheet.
- * Shows a skeleton while loading — no spinner, no layout shift.
+ * Full-screen modal for payment method + card brand selection.
+ * Data loads eagerly via usePaymentSheet — skeleton shown while loading.
+ * When a card method is selected, brand chips appear inline below the list.
  */
 export const PaymentSheet = memo(function PaymentSheet({
   visible,
   selectedId,
+  selectedBrandId,
   onSelect,
+  onSelectBrand,
   onClose,
 }: PaymentSheetProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { methods, isLoading, hasError } = usePaymentSheet();
+  const { methods, brands, selectedMethod, isLoading, isLoadingBrands, hasError } =
+    usePaymentSheet();
 
   const sheetBg = isDark
-    ? {
-        backgroundColor: colors.backgroundSecondary,
-        borderTopWidth: 0.5,
-        borderTopColor: colors.border,
-      }
+    ? { backgroundColor: colors.backgroundSecondary, borderTopWidth: 0.5, borderTopColor: colors.border }
     : { backgroundColor: colors.card, ...shadows.large };
 
-  // Show 4 skeleton rows while loading (matches typical method count)
-  const SKELETON_COUNT = 4;
+  const showBrands = !isLoading && selectedMethod?.requiresCardBrand === true;
 
   return (
     <Modal
@@ -145,77 +183,109 @@ export const PaymentSheet = memo(function PaymentSheet({
           </Text>
         </View>
 
-        {/* Skeleton while loading */}
-        {isLoading && Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-          <SkeletonRow key={i} />
-        ))}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Skeleton while loading */}
+          {isLoading && [0, 1, 2, 3].map((i) => <SkeletonRow key={i} />)}
 
-        {/* Error state */}
-        {!isLoading && hasError && (
-          <View style={styles.errorState}>
-            <Ionicons name="alert-circle-outline" size={24} color={colors.textSecondary} />
-            <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-              {tpm('loadMethodsFailed')}
-            </Text>
-          </View>
-        )}
+          {/* Error */}
+          {!isLoading && hasError && (
+            <View style={styles.errorState}>
+              <Ionicons name="alert-circle-outline" size={24} color={colors.textSecondary} />
+              <Text style={[styles.errorText, { color: colors.textSecondary }]}>
+                {tpm('loadMethodsFailed')}
+              </Text>
+            </View>
+          )}
 
-        {/* Payment options */}
-        {!isLoading && !hasError && methods.map((method, index) => {
-          const isSelected = method.id === selectedId;
-          const isLast = index === methods.length - 1;
-          return (
-            <TouchableOpacity
-              key={method.id}
-              style={[
-                styles.optionRow,
-                { borderBottomColor: colors.border },
-                isLast && { borderBottomWidth: 0 },
-              ]}
-              onPress={() => {
-                onSelect(method);
-                onClose();
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: isSelected }}
-              accessibilityLabel={method.label}
-            >
-              <View style={[styles.iconBox, { backgroundColor: method.iconBg }]}>
-                <Ionicons name={method.iconName} size={16} color={method.iconColor} />
-              </View>
-
-              <View style={styles.optionText}>
-                <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>
-                  {method.label}
-                </Text>
-                {method.subtitle.length > 0 && (
-                  <Text style={[styles.optionSub, { color: colors.textSecondary }]}>
-                    {method.subtitle}
+          {/* Payment method options */}
+          {!isLoading && !hasError && methods.map((method, index) => {
+            const isSelected = method.id === selectedId;
+            const isLast = index === methods.length - 1 && !showBrands;
+            return (
+              <TouchableOpacity
+                key={method.id}
+                style={[
+                  styles.optionRow,
+                  { borderBottomColor: colors.border },
+                  isLast && { borderBottomWidth: 0 },
+                ]}
+                onPress={() => onSelect(method)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={method.label}
+              >
+                <View style={[styles.iconBox, { backgroundColor: method.iconBg }]}>
+                  <Ionicons name={method.iconName} size={16} color={method.iconColor} />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>
+                    {method.label}
                   </Text>
-                )}
-              </View>
+                  {method.subtitle.length > 0 && (
+                    <Text style={[styles.optionSub, { color: colors.textSecondary }]}>
+                      {method.subtitle}
+                    </Text>
+                  )}
+                </View>
+                <View style={[styles.radio, { borderColor: colors.accent }]}>
+                  {isSelected && (
+                    <View style={[styles.radioDot, { backgroundColor: colors.accent }]} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
 
-              <View style={[styles.radio, { borderColor: colors.accent }]}>
-                {isSelected && (
-                  <View style={[styles.radioDot, { backgroundColor: colors.accent }]} />
-                )}
-              </View>
+          {/* Card brand section — shown when a card method is selected */}
+          {showBrands && (
+            <View style={styles.brandsSection}>
+              <Text style={[styles.brandsLabel, { color: colors.textHint }]}>
+                Bandeira do cartão
+              </Text>
+              {isLoadingBrands ? (
+                <View style={styles.brandsSkeletonRow}>
+                  {[0, 1, 2].map((i) => (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        brandStyles.chip,
+                        { backgroundColor: colors.border, borderColor: colors.border, width: 72 },
+                      ]}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.brandsWrap}>
+                  {brands.map((brand) => (
+                    <BrandChip
+                      key={brand.id}
+                      brand={brand}
+                      isSelected={brand.id === selectedBrandId}
+                      onPress={onSelectBrand}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Add card */}
+          {!isLoading && (
+            <TouchableOpacity
+              style={[styles.addCard, { borderColor: colors.accent }]}
+              accessibilityRole="button"
+              accessibilityLabel={th('addCard')}
+            >
+              <Text style={[styles.addCardText, { color: colors.accent }]}>
+                {th('addCard')}
+              </Text>
             </TouchableOpacity>
-          );
-        })}
-
-        {/* Add card */}
-        {!isLoading && (
-          <TouchableOpacity
-            style={[styles.addCard, { borderColor: colors.accent }]}
-            accessibilityRole="button"
-            accessibilityLabel={th('addCard')}
-          >
-            <Text style={[styles.addCardText, { color: colors.accent }]}>
-              {th('addCard')}
-            </Text>
-          </TouchableOpacity>
-        )}
+          )}
+        </ScrollView>
 
         {/* Confirm CTA */}
         <TouchableOpacity
@@ -248,6 +318,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: borders.radiusXL,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
+    maxHeight: '80%',
+  },
+  scrollContent: {
+    paddingBottom: spacing.sm,
   },
   handle: {
     width: 36,
@@ -317,6 +391,23 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  brandsSection: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  brandsLabel: {
+    ...typography.label,
+    marginBottom: spacing.sm,
+  },
+  brandsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  brandsSkeletonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   addCard: {
     height: 44,

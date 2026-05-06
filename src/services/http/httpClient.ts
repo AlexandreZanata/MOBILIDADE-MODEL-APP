@@ -219,10 +219,19 @@ class HttpClient {
 
       // Unwrap API envelope { success, data, message }
       if (data.success !== undefined) {
+        console.log('[HttpClient] envelope detected, success:', data.success, 'has data:', data.data !== undefined);
         if (data.success && data.data !== undefined) {
           return {
             success: true,
             data: data.data as T,
+            message: typeof data.message === 'string' ? data.message : undefined,
+          };
+        }
+        // success=true but no data field — return the whole object as data
+        if (data.success) {
+          return {
+            success: true,
+            data: data as unknown as T,
             message: typeof data.message === 'string' ? data.message : undefined,
           };
         }
