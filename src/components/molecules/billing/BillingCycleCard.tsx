@@ -10,10 +10,10 @@ import { spacing, typography } from '@/theme';
 interface BillingCycleCardProps {
   cycle: BillingCycle;
   isGeneratingPix: boolean;
-  formatCurrency(value: number): string;
-  formatDate(value: string): string;
-  formatDateShort(value: string): string;
-  onGeneratePix(cycle: BillingCycle): void;
+  formatCurrency: (value: number) => string;
+  formatDate: (value: string) => string;
+  formatDateShort: (value: string) => string;
+  onGeneratePix: (cycle: BillingCycle) => void;
 }
 
 export function BillingCycleCard({

@@ -666,7 +666,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [mapPassengerRideToActiveTrip]);
 
   // Handler para mensagens do WebSocket (novo serviço de rastreamento)
-  const handleWebSocketMessage = useCallback((message: ServerMessage) => {
+  const handleWebSocketMessage = useCallback((message: DriverServerMessage) => {
     console.log('[TripContext] Mensagem WebSocket recebida:', message);
     
     // Trata mensagem active_ride (corrida ativa após reconexão)

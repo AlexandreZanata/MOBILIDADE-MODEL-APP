@@ -20,9 +20,9 @@ import {
   chatWebSocket,
   type ChatServerMessage,
   type ChatMessageServer,
-  type ChatChatUnreadCountServer,
-  type ChatChatUserOnlineStatusServer,
-  type ChatChatDeliveryStatus,
+  type ChatUnreadCountServer,
+  type ChatUserOnlineStatusServer,
+  type ChatDeliveryStatus,
 } from '@/services/websocket';
 import { apiService, ChatMessageData } from '@/services/api';
 import { useAuth } from './AuthContext';

@@ -1,0 +1,50 @@
+const driverTripInProgressMessages = {
+  loadingTrip: 'Carregando corrida...',
+  tripNotFound: 'Corrida não encontrada',
+  back: 'Voltar',
+  tripInProgressTitle: 'Corrida em andamento',
+  estimatedFareLabel: 'VALOR ESTIMADO',
+  originLabel: 'ORIGEM',
+  passengerFallbackName: 'Passageiro',
+  chatUnavailableTitle: 'Chat indisponível',
+  chatUnavailableDescription: 'Nenhuma corrida ativa foi encontrada.',
+  genericErrorTitle: 'Erro',
+  unknownStatusError: 'Status não reconhecido',
+  cancelRideTitle: 'Cancelar corrida',
+  cancelRideDescription: 'Informe o motivo do cancelamento',
+  cancelRidePlaceholder: 'Ex.: Mudança de planos',
+  cancelRideAction: 'Confirmar cancelamento',
+  cancelRideSecondaryAction: 'Voltar',
+  cancelRideButton: 'Cancelar Corrida',
+  cancelRideDefaultReason: 'Cancelado pelo motorista',
+  cancelRideSuccessTitle: 'Corrida cancelada',
+  cancelRideSuccessDescription:
+    'A corrida foi cancelada com sucesso. Você está disponível para receber novas corridas.',
+  ratingTitle: 'Avaliar passageiro',
+  ratingDescription: 'Como foi a experiência?',
+  ratingLabel: 'Sua nota',
+  ratingCommentPlaceholder: 'Comentário (opcional)',
+  ratingSubmit: 'Enviar avaliação',
+  ratingUnavailableTitle: 'Avaliação não disponível',
+  ratingUnavailableDescription: 'A avaliação só pode ser enviada após a corrida ser finalizada.',
+  ratingSuccessTitle: 'Obrigado',
+  ratingSuccessDescription: 'Avaliação enviada com sucesso.',
+  statusOnTheWay: 'Estou a caminho',
+  statusNearby: 'Estou próximo (≤500m)',
+  statusArrived: 'Cheguei',
+  statusBoarded: 'Passageiro embarcou',
+  statusInRoute: 'Iniciar rota',
+  statusNearDestination: 'Próximo ao destino (≤500m)',
+  statusComplete: 'Finalizar Corrida',
+  ratingLabelExcellent: 'Excelente',
+  ratingLabelVeryGood: 'Muito bom',
+  ratingLabelGood: 'Boa',
+  ratingLabelRegular: 'Regular',
+  ratingLabelBad: 'Ruim',
+} as const;
+
+type DriverTripInProgressKey = keyof typeof driverTripInProgressMessages;
+
+export function tdt(key: DriverTripInProgressKey): string {
+  return String(driverTripInProgressMessages[key]);
+}

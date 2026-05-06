@@ -8,6 +8,7 @@ import { UserRole } from './Auth';
 
 /** Full user profile as stored in the app state. */
 export interface User {
+  id?: string;
   /** Backend user ID (comes as `userId` from the profile endpoint). */
   userId: string;
   email: string;
@@ -15,11 +16,17 @@ export interface User {
   phone?: string;
   birthDate?: string;
   photoUrl?: string;
+  cpf?: string;
   emailVerified?: boolean;
   emailVerifiedAt?: string;
   roles: UserRole[];
   /** Raw profile type string from the backend (e.g. 'motorista', 'driver'). */
   type?: string;
+  type_label?: string;
+  status?: string;
+  cnhNumber?: string;
+  cnhCategory?: string;
+  cnhExpirationDate?: string;
 }
 
 /**

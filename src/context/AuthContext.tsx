@@ -9,6 +9,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useContext,
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -295,4 +296,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * Backward-compatible hook export used across legacy screens/contexts.
+ */
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used inside <AuthProvider>.');
+  }
+  return context;
 }
