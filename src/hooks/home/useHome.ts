@@ -168,7 +168,22 @@ export function useHome({ navigation }: UseHomeParams) {
     Keyboard.dismiss();
     setSearchQuery(result.name);
     setShowResults(false);
+
     const hydrated = await homeFacade.hydrateDestination(result);
+
+    // Guard: if coordinates are still invalid after hydration, the place details
+    // call failed. Show an error instead of silently setting a broken destination.
+    const hasValidCoords =
+      Number.isFinite(hydrated.lat) &&
+      Number.isFinite(hydrated.lon) &&
+      !(hydrated.lat === 0 && hydrated.lon === 0);
+
+    if (!hasValidCoords) {
+      Alert.alert(th('resolveLocationTitle'), th('resolveLocationDescription'));
+      setSearchQuery('');
+      return;
+    }
+
     setSelectedDestination(hydrated);
     setIsMinimized(false);
   }, []);

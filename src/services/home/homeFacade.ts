@@ -70,11 +70,27 @@ class HomeFacade {
   }
 
   async hydrateDestination(destination: HomeDestination): Promise<HomeDestination> {
-    if (Number.isFinite(destination.lat) && Number.isFinite(destination.lon)) return destination;
+    // Coordinates are valid only when both are finite numbers outside the null
+    // island (0,0). Autocomplete results arrive with lat/lon = NaN because the
+    // Places Autocomplete API does not return coordinates — only place details do.
+    const hasValidCoords =
+      Number.isFinite(destination.lat) &&
+      Number.isFinite(destination.lon) &&
+      !(destination.lat === 0 && destination.lon === 0);
+
+    if (hasValidCoords) return destination;
+
     const details = await homeService.resolveDestinationDetails(destination.placeId);
     if (!details) return destination;
+
     homeService.clearPlacesSession();
-    return { ...destination, lat: details.lat, lon: details.lng, name: details.name || destination.name, displayName: details.formattedAddress || destination.displayName };
+    return {
+      ...destination,
+      lat: details.lat,
+      lon: details.lng,
+      name: details.name || destination.name,
+      displayName: details.formattedAddress || destination.displayName,
+    };
   }
 
   async resolveCityState(lat: number, lon: number): Promise<{ city?: string; state?: string }> {

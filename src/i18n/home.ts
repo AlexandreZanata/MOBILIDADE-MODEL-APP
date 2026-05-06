@@ -15,6 +15,8 @@ const homeMessages = {
   waitLocationDescription: 'Por favor, aguarde a localizacao ser detectada.',
   chooseDestinationTitle: 'Atencao',
   chooseDestinationDescription: 'Selecione um destino primeiro...',
+  resolveLocationTitle: 'Erro ao obter localização',
+  resolveLocationDescription: 'Não foi possível obter as coordenadas deste local. Tente novamente ou escolha outro destino.',
 } as const;
 
 type HomeMessageKey = keyof typeof homeMessages;

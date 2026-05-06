@@ -30,8 +30,10 @@ export const homeDestinationSchema = z
     placeId: String(value.place_id),
     name: value.name,
     displayName: value.display_name,
-    lat: Number(value.lat),
-    lon: Number(value.lon),
+    // Empty string from autocomplete results maps to NaN — kept intentionally
+    // so hydrateDestination knows it must fetch coordinates via place details.
+    lat: value.lat === '' || value.lat === null ? NaN : Number(value.lat),
+    lon: value.lon === '' || value.lon === null ? NaN : Number(value.lon),
     type: value.type,
   }));
 

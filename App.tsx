@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -610,15 +611,17 @@ function App(){
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ChatProvider>
-          <TripProvider>
-            <AppContent />
-          </TripProvider>
-        </ChatProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AuthProvider>
+          <ChatProvider>
+            <TripProvider>
+              <AppContent />
+            </TripProvider>
+          </ChatProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
