@@ -1,6 +1,32 @@
 import { apiCoreClient } from '../core/client';
 import type { ApiResponse } from '../types/common';
 
+/**
+ * Normalizes backend error payloads to a human-readable string.
+ * Handles NestJS class-validator arrays, plain strings, and nested objects.
+ */
+function extractErrorMessage(record: Record<string, unknown>, fallback = 'Erro desconhecido'): string {
+  const raw = record.message ?? record.error;
+  if (!raw) return fallback;
+  if (typeof raw === 'string') return raw || fallback;
+  if (Array.isArray(raw)) {
+    const parts = raw.map((item) =>
+      typeof item === 'string' ? item : typeof item === 'object' && item !== null ? Object.values(item).join(', ') : String(item)
+    );
+    return parts.join('. ') || fallback;
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    // e.g. { constraints: { isString: '...' } }
+    const nested = raw as Record<string, unknown>;
+    const constraints = nested.constraints;
+    if (typeof constraints === 'object' && constraints !== null) {
+      return Object.values(constraints).join('. ') || fallback;
+    }
+    return Object.values(nested).join('. ') || fallback;
+  }
+  return String(raw) || fallback;
+}
+
 export const profileRoutes = {
   getDriverRating(): Promise<ApiResponse<{ userId: string; currentRating: string; totalRatings: number }>> {
     return apiCoreClient.request('/drivers/ratings/me', { method: 'GET' });
@@ -32,7 +58,7 @@ export const profileRoutes = {
         const data: unknown = text ? JSON.parse(text) : {};
         if (!response.ok) {
           const record = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
-          const message = String(record.message ?? record.error ?? 'Erro desconhecido');
+          const message = extractErrorMessage(record);
           return { success: false, error: message, message, status: response.status };
         }
         const record = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
@@ -60,7 +86,7 @@ export const profileRoutes = {
         const data: unknown = text ? JSON.parse(text) : {};
         if (!response.ok) {
           const record = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
-          const message = String(record.message ?? record.error ?? 'Erro desconhecido');
+          const message = extractErrorMessage(record);
           return { success: false, error: message, message, status: response.status };
         }
         return { success: true, data: data as unknown };

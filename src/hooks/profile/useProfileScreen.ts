@@ -96,11 +96,13 @@ export function useProfileScreen(navigation: NavigationShape) {
   }, [accountType, driverStatus, user, userIsDriver, userName]);
 
   const profilePhotoUrl = useMemo(() => {
+    // cachedPhotoUrl takes priority — it is set immediately after a successful
+    // upload or after refreshProfile resolves, so it always reflects the latest state.
+    if (cachedPhotoUrl) return cachedPhotoUrl;
     if (!user?.photoUrl) return undefined;
     const profileId = user.userId || user.id;
     if (!profileId) return undefined;
-    const apiUrl = `${API_BASE_URL}/profile-photos/${profileId}?t=${Date.now()}`;
-    return cachedPhotoUrl || apiUrl;
+    return `${API_BASE_URL}/profile-photos/${profileId}?t=${Date.now()}`;
   }, [cachedPhotoUrl, user?.id, user?.photoUrl, user?.userId]);
 
   const refreshProfile = useCallback(async () => {
@@ -231,12 +233,20 @@ export function useProfileScreen(navigation: NavigationShape) {
           Alert.alert(tp('genericErrorTitle'), response.error?.message || tp('genericErrorDescription'));
           return;
         }
-        await refreshProfile();
+        // Force-refresh user data so user.photoUrl is updated immediately,
+        // bypassing the TTL cache that would otherwise skip the API call.
+        await refreshUserData(true);
+        // Now rebuild the photo URL with the fresh user data and bust the cache.
+        const profileId = user?.userId || user?.id;
+        if (profileId) {
+          const freshUrl = `${API_BASE_URL}/profile-photos/${profileId}?t=${Date.now()}`;
+          setCachedPhotoUrl(freshUrl);
+        }
       } finally {
         setIsUploadingPhoto(false);
       }
     });
-  }, [ensureToken, refreshProfile, requestUploadSource, userTypeForUpload]);
+  }, [ensureToken, refreshUserData, requestUploadSource, user?.id, user?.userId, userTypeForUpload]);
 
   const handleUploadCnh = useCallback(() => requestUploadSource(uploadCnh), [requestUploadSource, uploadCnh]);
   const onMenuAction = useCallback((action: ProfileMenuItem['action']) => {
