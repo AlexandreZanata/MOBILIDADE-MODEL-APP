@@ -1,0 +1,24 @@
+const homeMessages = {
+  searchPlaceholder: 'Para onde enviar?',
+  helperText: '*Digite para escolher o destino....',
+  resultsTitle: 'Resultados',
+  noResultsInCity: 'Nenhum local encontrado em Sorriso, MT',
+  newRideTitle: 'Nova Corrida',
+  destinationLabel: 'Destino',
+  selectDestination: 'Selecione um destino',
+  estimatedTimeLabel: 'Tempo estimado',
+  estimatedTimeValue: '30 min',
+  requestTripButton: 'Solicitar Corrida',
+  permissionDeniedTitle: 'Permissao negada',
+  permissionDeniedDescription: 'Precisamos da sua localizacao para melhorar a experiencia.',
+  waitLocationTitle: 'Atencao',
+  waitLocationDescription: 'Por favor, aguarde a localizacao ser detectada.',
+  chooseDestinationTitle: 'Atencao',
+  chooseDestinationDescription: 'Selecione um destino primeiro...',
+} as const;
+
+type HomeMessageKey = keyof typeof homeMessages;
+
+export function th(key: HomeMessageKey): string {
+  return String(homeMessages[key]);
+}
