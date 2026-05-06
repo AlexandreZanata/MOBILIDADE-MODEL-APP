@@ -6,7 +6,11 @@ import { UserRole } from '@/models/Auth';
 import { User } from '@/models/User';
 import { USER_CACHE_TTL_MS } from '@/context/auth/constants';
 import { loginIdentitySchema, refreshTokensSchema } from '@/context/auth/schemas';
-import { buildSanitizedUser, fetchProfileByRoles } from '@/context/auth/profile';
+import {
+  buildSanitizedUser,
+  fetchProfileByRoles,
+  mergeRolesWithProfileSource,
+} from '@/context/auth/profile';
 import {
   isUserCacheValid,
   loadHydratedAuthStorage,
@@ -50,10 +54,11 @@ export function useAuthProviderValue(): AuthContextValue {
 
   const refreshUserFromApi = useCallback(
     async (roles: UserRole[]): Promise<User | null> => {
-      const rawProfile = await fetchProfileByRoles(roles);
-      if (!rawProfile) return null;
+      const { profile, source } = await fetchProfileByRoles(roles);
+      if (!profile) return null;
 
-      const nextUser = buildSanitizedUser(rawProfile, roles);
+      const resolvedRoles = mergeRolesWithProfileSource(roles, source);
+      const nextUser = buildSanitizedUser(profile, resolvedRoles);
       setUser(nextUser);
       await storeUser(nextUser);
       return nextUser;
@@ -160,14 +165,15 @@ export function useAuthProviderValue(): AuthContextValue {
 
         await persistTokens(identity.accessToken, identity.refreshToken);
 
-        const profile = await fetchProfileByRoles(identity.roles);
+        const { profile, source } = await fetchProfileByRoles(identity.roles);
+        const resolvedRoles = mergeRolesWithProfileSource(identity.roles, source);
         const normalizedUser: User = profile
-          ? buildSanitizedUser(profile, identity.roles)
+          ? buildSanitizedUser(profile, resolvedRoles)
           : {
               userId: identity.id,
               email: identity.email,
               name: identity.email.split('@')[0],
-              roles: identity.roles,
+              roles: resolvedRoles,
               emailVerified: identity.emailVerified,
             };
 

@@ -14,6 +14,7 @@ import {
 import { tdh } from '@/i18n/driverHome';
 import { startDriverBackgroundLocation, stopDriverBackgroundLocation } from '@/services/backgroundLocationService';
 import { driverWebSocket, DriverServerMessage } from '@/services/websocket';
+import { waitUntilDriverSocketOpen } from '@/hooks/driverHome/waitUntilDriverSocketOpen';
 
 interface UseDriverHomeAvailabilityParams {
   currentLocation: DriverHomeLocation | null;
@@ -140,11 +141,10 @@ export function useDriverHomeAvailability({
         setIsAvailable(availableNow);
 
         if (value && availableNow) {
-          // Ensure WebSocket is connected before sending status update
           if (!isWebSocketConnected && connectWebSocket) {
             await connectWebSocket();
           }
-          // Notify the dispatch system via WebSocket
+          await waitUntilDriverSocketOpen(DRIVER_HOME_TIMERS.DRIVER_SOCKET_CONNECT_WAIT_MS);
           syncStatusViaSocket('AVAILABLE');
 
           if (currentLocation && driverWebSocket.isConnected) {

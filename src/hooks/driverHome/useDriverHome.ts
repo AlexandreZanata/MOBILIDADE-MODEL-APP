@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -10,6 +10,11 @@ import { useDriverHomeAvailability } from '@/hooks/driverHome/useDriverHomeAvail
 import { useDriverHomeLocation } from '@/hooks/driverHome/useDriverHomeLocation';
 import { useDriverHomeSocket } from '@/hooks/driverHome/useDriverHomeSocket';
 import { DRIVER_HOME_TIMERS } from '@/hooks/driverHome/constants';
+import {
+  getOperationalSnapshotSummary,
+  isDriverEligible,
+  shouldShowOperationalAvailabilityHint,
+} from '@/hooks/driverHome/helpers';
 import { tdh } from '@/i18n/driverHome';
 
 interface UseDriverHomeParams {
@@ -72,6 +77,26 @@ export function useDriverHome({ navigation }: UseDriverHomeParams) {
     socket.handleAcceptTrip();
   }, [socket.handleAcceptTrip, socket.pendingTrip]);
 
+  const driverEligible = useMemo(
+    () => isDriverEligible(availability.operationalStatus, availability.validationStatus),
+    [availability.operationalStatus, availability.validationStatus]
+  );
+
+  const operationalSnapshotText = useMemo(
+    () => getOperationalSnapshotSummary(availability.operationalStatus),
+    [availability.operationalStatus]
+  );
+
+  const showOperationalAvailabilityHint = useMemo(
+    () => shouldShowOperationalAvailabilityHint(availability.operationalStatus, driverEligible),
+    [availability.operationalStatus, driverEligible]
+  );
+
+  const serverBlocksReceiveRides = useMemo(
+    () => Boolean(availability.operationalStatus && !availability.operationalStatus.canReceiveRides),
+    [availability.operationalStatus]
+  );
+
   const handleToggleAvailability = useCallback(
     async (value: boolean) => {
       if (value && !location.currentLocation) {
@@ -109,7 +134,10 @@ export function useDriverHome({ navigation }: UseDriverHomeParams) {
     isConnecting: availability.isConnecting,
     isAvailabilityRateLimited: availability.isAvailabilityRateLimited,
     isRateLimited: location.isRateLimited,
-    isDriverEligible: availability.isDriverEligible,
+    driverEligible,
+    operationalSnapshotText,
+    showOperationalAvailabilityHint,
+    serverBlocksReceiveRides,
     hasPendingDocuments: availability.hasPendingDocuments,
     getValidationWarningMessage: availability.getValidationWarningMessage,
     getEligibilityMessage: availability.getEligibilityMessage,

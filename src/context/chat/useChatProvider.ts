@@ -13,13 +13,17 @@ import { fetchRideStatus } from './api';
 import { initialChatState } from './constants';
 import { isRideActiveForChat, toChatMessage } from './helpers';
 import { runLongPolling } from './polling';
+import type { UserRole } from '@/models/Auth';
+import { isDriver, isPassenger } from '@/models/User';
 import type { ChatContextType, ChatMessage, ChatState } from './types';
 
 type SessionUser = { roles?: string[]; type?: string; userId?: string; id?: string };
+
 function useUserType(user?: SessionUser | null): 'driver' | 'passenger' | null {
   if (!user) return null;
-  if (user.roles?.includes('driver')) return 'driver';
-  if (user.roles?.includes('passenger') || user.type === 'passenger') return 'passenger';
+  const roleLike = { roles: (user.roles ?? []) as UserRole[], type: user.type };
+  if (isDriver(roleLike)) return 'driver';
+  if (isPassenger(roleLike)) return 'passenger';
   return null;
 }
 

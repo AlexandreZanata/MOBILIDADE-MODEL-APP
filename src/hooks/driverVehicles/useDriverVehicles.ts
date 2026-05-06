@@ -1,15 +1,22 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { AutocompleteItem } from '@/components/molecules/AutocompleteInput';
 import { tdv } from '@/i18n/driverVehicles';
 import { DriverServiceCategory, DriverVehicle } from '@/models/driverVehicles/types';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { driverVehiclesFacade } from '@/services/driverVehicles/driverVehiclesFacade';
-import { openAppSettings, requestCameraPermission, requestMediaLibraryPermission } from '@/services/permissionsService';
+import { openAppSettings } from '@/services/permissionsService';
+import { httpClient } from '@/services/http/httpClient';
 
 const LOAD_THROTTLE_MS = 5000;
+/**
+ * Maximum time (ms) to wait for the JWT to be hydrated from storage before
+ * giving up and showing an error. Hydration typically completes in < 300 ms.
+ */
+const TOKEN_WAIT_TIMEOUT_MS = 4000;
+const TOKEN_POLL_INTERVAL_MS = 100;
 const LICENSE_PLATE_CLASSIC_REGEX = /^[A-Z]{3}-?\d{4}$/i;
 const LICENSE_PLATE_MERCOSUL_REGEX = /^[A-Z]{3}\d[A-Z]\d{2}$/i;
 
@@ -17,6 +24,35 @@ type FormErrors = Record<string, string>;
 
 function isDocumentPending(status: string): boolean {
   return status === 'PENDING_DOCS' || status === 'AWAITING_VEHICLE';
+}
+
+/**
+ * Waits until the httpClient has a valid access token or the timeout expires.
+ * Returns `true` if a token became available, `false` on timeout.
+ *
+ * This guards against the race condition where the vehicles screen mounts and
+ * fires API requests before the auth hydration effect has finished loading
+ * tokens from secure storage.
+ */
+async function waitForToken(
+  timeoutMs = TOKEN_WAIT_TIMEOUT_MS,
+  intervalMs = TOKEN_POLL_INTERVAL_MS,
+): Promise<boolean> {
+  if (httpClient.getAccessToken()) return true;
+  const deadline = Date.now() + timeoutMs;
+  return new Promise((resolve) => {
+    const id = setInterval(() => {
+      if (httpClient.getAccessToken()) {
+        clearInterval(id);
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        clearInterval(id);
+        resolve(false);
+      }
+    }, intervalMs);
+  });
 }
 
 export function useDriverVehicles() {
@@ -62,7 +98,12 @@ export function useDriverVehicles() {
       setServiceCategories(response.data);
       return;
     }
-    Alert.alert(tdv('errorTitle'), tdv('loadCategoriesError'));
+    // Only show the error alert when we actually have a token — if there's no
+    // token it means auth hydration hasn't finished yet and the error is
+    // transient (handled by the waitForToken guard in loadData).
+    if (httpClient.getAccessToken()) {
+      Alert.alert(tdv('errorTitle'), tdv('loadCategoriesError'));
+    }
   }, []);
 
   const loadData = useCallback(async () => {
@@ -75,6 +116,15 @@ export function useDriverVehicles() {
     isLoadingRef.current = true;
     setIsLoading(true);
     try {
+      // Wait for the JWT to be hydrated from secure storage before firing any
+      // API request. This prevents spurious 401 errors when the screen mounts
+      // immediately after login/app-open while hydration is still in progress.
+      const hasToken = await waitForToken();
+      if (!hasToken) {
+        // Token never arrived — auth is genuinely missing, bail silently.
+        // The auth layer will redirect to login if needed.
+        return;
+      }
       await Promise.all([loadVehicles(), loadServiceCategories()]);
     } finally {
       isLoadingRef.current = false;
@@ -189,53 +239,77 @@ export function useDriverVehicles() {
     [ensureToken, loadVehicles]
   );
 
-  const requestUploadFromGallery = useCallback(
-    async (vehicleId: string) => {
-      const granted = await requestMediaLibraryPermission();
-      if (!granted) {
-        Alert.alert(tdv('permissionRequired'), tdv('mediaPermissionDescription'), [
-          { text: tdv('cancel'), style: 'cancel' },
-          { text: tdv('openSettings'), onPress: () => openAppSettings() },
-        ]);
-        return;
-      }
-      launchImageLibrary({ mediaType: 'photo', quality: 0.8, selectionLimit: 1, includeBase64: false }, (response) => {
-        const fileUri = response.assets?.[0]?.uri;
-        if (response.didCancel || response.errorCode || !fileUri) return;
-        void uploadVehicleDocument(vehicleId, fileUri);
-      });
+  /**
+   * Processes the result from expo-image-picker and triggers the upload.
+   * Mirrors the same pattern used in useProfileMediaActions.
+   */
+  const processPickerResult = useCallback(
+    async (result: ImagePicker.ImagePickerResult, vehicleId: string) => {
+      if (result.canceled) return;
+      const uri = result.assets?.[0]?.uri;
+      if (!uri) return;
+      await uploadVehicleDocument(vehicleId, uri);
     },
     [uploadVehicleDocument]
   );
 
-  const requestUploadFromCamera = useCallback(
-    async (vehicleId: string) => {
-      const granted = await requestCameraPermission();
-      if (!granted) {
-        Alert.alert(tdv('permissionRequired'), tdv('cameraPermissionDescription'), [
-          { text: tdv('cancel'), style: 'cancel' },
-          { text: tdv('openSettings'), onPress: () => openAppSettings() },
-        ]);
-        return;
-      }
-      launchCamera({ mediaType: 'photo', quality: 0.8, saveToPhotos: false }, (response) => {
-        const fileUri = response.assets?.[0]?.uri;
-        if (response.didCancel || response.errorCode || !fileUri) return;
-        void uploadVehicleDocument(vehicleId, fileUri);
-      });
-    },
-    [uploadVehicleDocument]
-  );
-
+  /**
+   * Shows a gallery/camera picker Alert.
+   *
+   * Permissions are requested **inside** each button's onPress callback
+   * (async IIFE pattern) so that React Native never has two Alerts stacked —
+   * which would silently close the first one and swallow the user's action.
+   * This is the same pattern used by useProfileMediaActions.
+   */
   const handleUploadDocument = useCallback(
     (vehicleId: string) => {
       Alert.alert(tdv('uploadDocument'), tdv('uploadDocumentDescription'), [
-        { text: tdv('gallery'), onPress: () => void requestUploadFromGallery(vehicleId) },
-        { text: tdv('camera'), onPress: () => void requestUploadFromCamera(vehicleId) },
+        {
+          text: tdv('gallery'),
+          onPress: () => {
+            void (async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert(tdv('permissionRequired'), tdv('mediaPermissionDescription'), [
+                  { text: tdv('cancel'), style: 'cancel' },
+                  { text: tdv('openSettings'), onPress: () => openAppSettings() },
+                ]);
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: 'images',
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              await processPickerResult(result, vehicleId);
+            })();
+          },
+        },
+        {
+          text: tdv('camera'),
+          onPress: () => {
+            void (async () => {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert(tdv('permissionRequired'), tdv('cameraPermissionDescription'), [
+                  { text: tdv('cancel'), style: 'cancel' },
+                  { text: tdv('openSettings'), onPress: () => openAppSettings() },
+                ]);
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: 'images',
+                allowsEditing: false,
+                quality: 0.8,
+              });
+              await processPickerResult(result, vehicleId);
+            })();
+          },
+        },
         { text: tdv('cancel'), style: 'cancel' },
       ]);
     },
-    [requestUploadFromCamera, requestUploadFromGallery]
+    [processPickerResult]
   );
 
   return {

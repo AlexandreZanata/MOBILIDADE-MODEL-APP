@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { borders, shadows, spacing, typography } from '@/theme';
 import { HomeDestination } from '@/models/home/types';
 import { TripCategoryOption } from '@/models/tripPrice/types';
@@ -65,9 +66,10 @@ export const HomeBottomCard = memo(function HomeBottomCard({
   onCardBrandChange,
 }: HomeBottomCardProps) {
   const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
   const { selectedMethod, selectedBrandId, selectMethod, selectBrand } =
-    usePaymentSheet(onPaymentMethodChange, onCardBrandChange);
+    usePaymentSheet(onPaymentMethodChange, onCardBrandChange, isAuthenticated);
 
   const handleSelectMethod = useCallback((method: UiPaymentMethod) => {
     selectMethod(method.id);

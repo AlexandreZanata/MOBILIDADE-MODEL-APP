@@ -176,14 +176,15 @@ describe('parseBillingStatus', () => {
     expect(() => parseBillingStatus(raw)).toThrow();
   });
 
-  it('throws when isBlocked is missing', () => {
+  it('defaults isBlocked to false when absent', () => {
     const raw = {
       driverId: 'driver-1',
       totalDebt: 0,
       totalPendingRides: 0,
     };
 
-    expect(() => parseBillingStatus(raw)).toThrow();
+    const result = parseBillingStatus(raw);
+    expect(result.isBlocked).toBe(false);
   });
 
   it('parses nextDueDate when present', () => {

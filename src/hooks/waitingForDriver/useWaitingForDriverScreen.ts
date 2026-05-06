@@ -28,6 +28,9 @@ import { passengerWebSocket } from '@/services/websocket/PassengerWebSocket';
 import type { PassengerServerMessage } from '@/services/websocket/types/passenger.types';
 import type { RoutePoint } from '@/components/molecules/TileMap';
 
+/** POST-create / replication lag before treating GET passenger active-ride 404 as terminal. */
+const PASSENGER_ACTIVE_RIDE_INDEXING_GRACE_MS = 45_000;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LatLon {
@@ -86,7 +89,7 @@ export function useWaitingForDriverScreen({
 }: UseWaitingForDriverScreenParams) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { activeTrip, cancelTrip, refreshTrip, clearTrip } = useTrip();
+  const { activeTrip, cancelTrip, clearTrip } = useTrip();
   const { openChat, closeChat, isChatOpen, currentRideId, updateRideStatus } = useChat();
 
   // Map zoom (pinch) — must be lifted so TileMap can call onZoom like Home / driver flows.
@@ -135,6 +138,11 @@ export function useWaitingForDriverScreen({
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
 
   const exitedNotFoundRef = useRef(false);
+  const rideIndexingGraceStartedAtRef = useRef(Date.now());
+
+  useEffect(() => {
+    rideIndexingGraceStartedAtRef.current = Date.now();
+  }, [initialTripId]);
 
   // ── Rating state ────────────────────────────────────────────────────────
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
@@ -265,9 +273,11 @@ export function useWaitingForDriverScreen({
     if (!rideId || syncRef.current) return;
     syncRef.current = true;
     try {
-      await refreshTrip();
       const poll = await waitingForDriverFacade.pollPassengerActiveRide(rideId);
       if (poll.kind === 'not_found') {
+        const withinGrace =
+          Date.now() - rideIndexingGraceStartedAtRef.current < PASSENGER_ACTIVE_RIDE_INDEXING_GRACE_MS;
+        if (withinGrace) return;
         exitWhenRideInactive();
         return;
       }
@@ -282,7 +292,7 @@ export function useWaitingForDriverScreen({
     } finally {
       syncRef.current = false;
     }
-  }, [applySnapshot, exitWhenRideInactive, refreshTrip, rideId]);
+  }, [applySnapshot, exitWhenRideInactive, rideId]);
 
   useEffect(() => {
     if (!rideId) return;
@@ -313,7 +323,7 @@ export function useWaitingForDriverScreen({
     };
     passengerWebSocket.setOnMessage(handleMessage);
     return () => {
-      passengerWebSocket.setOnMessage(() => undefined);
+      passengerWebSocket.removeOnMessage(handleMessage);
     };
   }, [onNavigateMain, syncSnapshot, updateRideStatus]);
 

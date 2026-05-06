@@ -5,6 +5,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
+import { isDriver } from '@/models/User';
 import { useTrip } from '@/context/TripContext';
 import { HomeDestination, HomeLocation } from '@/models/home/types';
 import { TripCategoryOption } from '@/models/tripPrice/types';
@@ -63,7 +64,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
   const { user } = useAuth();
   const { activeTrip, isLoading: isTripLoading } = useTrip();
   const ensureToken = useTokenRefresh();
-  const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
+  const userIsDriver = Boolean(user && isDriver(user));
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRequestedRef = useRef(false);
   /**
@@ -182,7 +183,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
   }, [searchLocation, searchQuery]);
 
   useEffect(() => {
-    if (isDriver) {
+    if (userIsDriver) {
       setIsCheckingActiveRide(false);
       return;
     }
@@ -206,7 +207,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
     return () => {
       mounted = false;
     };
-  }, [isDriver, navigation]);
+  }, [userIsDriver, navigation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -414,7 +415,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
   ]);
 
   const vm = useMemo(() => ({
-    isDriver,
+    isDriver: userIsDriver,
     activeTrip,
     isTripLoading,
     isCheckingActiveRide,
@@ -473,7 +474,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
     },
     goToNotifications: () => navigation.navigate('Notifications'),
   }), [
-    activeTrip, hasUserMovedMap, isCheckingActiveRide, isDriver, isLoadingCategories, isLocating,
+    activeTrip, hasUserMovedMap, isCheckingActiveRide, userIsDriver, isLoadingCategories, isLocating,
     isMinimized, isSearching, isTripLoading, mapCenter, mapZoom, navigation, onSelectLocation,
     requestLocationPermission, requestTrip, rideCategories, searchBarHeight, searchQuery,
     searchResults, selectedCategoryId, selectedDestination, showHelperText, showResults,

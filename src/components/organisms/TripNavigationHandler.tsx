@@ -5,14 +5,23 @@
 
 import React, {useEffect, useRef} from 'react';
 import {useNavigation} from '@react-navigation/native';
+import type { NavigationProp, NavigationState, Route } from '@react-navigation/native';
 import {AppState, AppStateStatus} from 'react-native';
 import {useTrip} from '@/context/TripContext';
 import {useAuth} from '@/context/AuthContext';
+import { isDriver } from '@/models/User';
 import { TripStatus } from '@/services/websocket';
 
 interface TripNavigationHandlerProps {
   children: React.ReactNode;
 }
+
+/** Minimal param list covering the routes this handler navigates to. */
+type TripNavParamList = {
+  WaitingForDriver: { tripId: string };
+  DriverTripInProgress: { tripId: string };
+  [key: string]: object | undefined;
+};
 
 // Status que devem mostrar WaitingForDriver (passageiro aguardando motorista)
 const WAITING_FOR_DRIVER_STATUSES: TripStatus[] = [
@@ -53,7 +62,7 @@ const COMPLETED_OR_CANCELLED_STATUSES: TripStatus[] = [
 ];
 
 export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ children }) => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<TripNavParamList>>();
   const { activeTrip, isLoading } = useTrip();
   const { user } = useAuth();
   const hasNavigatedRef = useRef(false);
@@ -61,8 +70,7 @@ export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ ch
   const appStateRef = useRef(AppState.currentState);
   const navigationReadyRef = useRef(false);
 
-  // Detecta se o usuário é motorista através dos roles retornados na autenticação
-  const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
+  const userIsDriver = Boolean(user && isDriver(user));
 
   // Aguarda navegação estar pronta
   useEffect(() => {
@@ -93,8 +101,10 @@ export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ ch
 
     try {
       // Verifica rota atual
-      const state = navigation.getState();
-      const currentRoute = state?.routes[state?.index || 0];
+      const state = navigation.getState() as NavigationState | undefined;
+      const currentRoute = state?.routes[state?.index ?? 0] as
+        | Route<string, { tripId?: string } | undefined>
+        | undefined;
       const currentRouteName = currentRoute?.name;
 
       // Se já está na tela de trip, não navega novamente
@@ -103,7 +113,7 @@ export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ ch
         currentRouteName === 'DriverTripInProgress'
       ) {
         // Verifica se é a mesma trip
-        const params = (currentRoute as any)?.params;
+        const params = currentRoute?.params;
         if (params?.tripId === activeTrip.id) {
           hasNavigatedRef.current = true;
           lastTripIdRef.current = activeTrip.id;
@@ -112,7 +122,7 @@ export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ ch
       }
 
       // Navega para a tela apropriada
-      if (isDriver) {
+      if (userIsDriver) {
         // Motorista: sempre vai para DriverTripInProgress se tiver trip ativa
         navigation.navigate('DriverTripInProgress', {
           tripId: activeTrip.id,
@@ -133,7 +143,7 @@ export const TripNavigationHandler: React.FC<TripNavigationHandlerProps> = ({ ch
       console.error('[TripNavigationHandler] Erro ao navegar:', error);
       hasNavigatedRef.current = false;
     }
-  }, [activeTrip, isLoading, isDriver, navigation]);
+  }, [activeTrip, isLoading, userIsDriver, navigation]);
 
   // Monitora mudanças na trip ativa
   useEffect(() => {

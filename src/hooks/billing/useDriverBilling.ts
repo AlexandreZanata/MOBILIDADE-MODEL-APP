@@ -28,10 +28,16 @@ function resolveErrorMessage(error: ServiceError | undefined, fallback: string):
  *
  * If the status response already contains a `currentPix`, it is surfaced
  * immediately so the driver can copy/pay without generating a new QR code.
+ *
+ * Note: `canAccessBilling` is kept for informational use but does NOT block
+ * the API calls — the screen is already role-gated by the navigator and the
+ * API itself enforces auth. Blocking on the client-side role check causes false
+ * negatives when the user profile is partially hydrated.
  */
 export function useDriverBilling() {
   const ensureToken = useTokenRefresh();
   const { user } = useAuth();
+  // Kept for potential UI hints but not used as a hard gate
   const canAccessBilling = Boolean(user && isDriver(user));
 
   const [billingStatus, setBillingStatus] = useState<DriverBillingStatus | null>(null);
@@ -68,18 +74,15 @@ export function useDriverBilling() {
   // ─── Data loading ────────────────────────────────────────────────────────────
 
   const loadBillingStatus = useCallback(async () => {
-    if (!canAccessBilling) {
-      setIsLoading(false);
-      return;
-    }
-
+    // Always attempt the API call — the server enforces auth.
+    // Do not gate on canAccessBilling to avoid false negatives from
+    // partially-hydrated user profiles.
     try {
       setIsLoading(true);
       await ensureToken();
       const response = await driverBillingService.getBillingStatus();
       if (response.success && response.data) {
         setBillingStatus(response.data);
-        // If the API already returned an active PIX, surface it immediately
         if (response.data.currentPix) {
           setPixData(response.data.currentPix);
         }
@@ -91,12 +94,11 @@ export function useDriverBilling() {
     } finally {
       setIsLoading(false);
     }
-  }, [canAccessBilling, ensureToken]);
+  }, [ensureToken]);
 
   const loadCycles = useCallback(
     async (append = false) => {
-      if (!canAccessBilling) return;
-
+      // Same rationale — do not gate on canAccessBilling.
       try {
         if (!append) setIsLoadingCycles(true);
         await ensureToken();
@@ -126,7 +128,7 @@ export function useDriverBilling() {
         setIsLoadingCycles(false);
       }
     },
-    [canAccessBilling, ensureToken, nextCursor]
+    [ensureToken, nextCursor]
   );
 
   // ─── PIX generation ──────────────────────────────────────────────────────────

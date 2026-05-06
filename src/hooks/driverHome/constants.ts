@@ -27,6 +27,8 @@ export const DRIVER_HOME_TIMERS = {
   ACTIVE_RIDE_CHECK_DELAY_MS: 2000,
   LOCATION_REFRESH_ON_FOCUS_DELAY_MS: 150,
   OFFER_DEFAULT_EXPIRE_MS: 15000,
+  /** Max wait for driver WSS `open` after {@link connectWebSocket} before sending `status_update`. */
+  DRIVER_SOCKET_CONNECT_WAIT_MS: 8000,
 } as const;
 
 export const DRIVER_HOME_ZOOM_LEVELS = [12, 14, 16, 18, 20] as const;

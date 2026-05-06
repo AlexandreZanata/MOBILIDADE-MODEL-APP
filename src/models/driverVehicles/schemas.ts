@@ -30,13 +30,16 @@ const driverVehiclesPageSchema = z.object({
   hasMore: z.boolean(),
 });
 
+/** API may return fares as decimal strings or numbers; normalize to string for UI. */
+const decimalLike = z.union([z.string(), z.number()]).transform((v) => String(v));
+
 const serviceCategorySchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  baseFare: z.string(),
-  perKmRate: z.string(),
-  minFare: z.string(),
+  baseFare: decimalLike,
+  perKmRate: decimalLike,
+  minFare: decimalLike,
 });
 
 const serviceCategoriesPageSchema = z.object({
@@ -48,16 +51,20 @@ const vehicleBrandSchema = z.object({
   name: z.string(),
 });
 
+/** Models include brandId/slug in API; only id+name required for forms. */
 const vehicleModelSchema = z.object({
   id: z.string(),
+  brandId: z.string().optional(),
   name: z.string(),
+  slug: z.string().optional(),
 });
 
 const searchPageSchema = <TSchema extends z.ZodTypeAny>(itemSchema: TSchema) =>
   z.object({
     items: z.array(itemSchema),
-    nextCursor: z.string().optional(),
-    prevCursor: z.string().optional(),
+    // API returns null when there is no cursor; nullish() accepts null | undefined | string.
+    nextCursor: z.string().nullish(),
+    prevCursor: z.string().nullish(),
     hasMore: z.boolean(),
   });
 

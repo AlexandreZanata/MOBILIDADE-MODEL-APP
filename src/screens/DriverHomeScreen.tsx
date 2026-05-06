@@ -12,13 +12,21 @@ type DriverHomeScreenProps = {
   navigation: StackNavigationProp<Record<string, object | undefined>>;
 };
 
+/**
+ * Driver home screen.
+ *
+ * Layout mirrors the passenger HomeScreen:
+ *   - Root view fills the screen with `StyleSheet.absoluteFill` so the map
+ *     can expand to full height without being constrained by sibling views.
+ *   - DriverHomeStatusCard and DriverHomeHeader are `position: absolute`
+ *     inside DriverHomeMapSection, so they float over the map.
+ */
 export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }) => {
   const { colors } = useTheme();
   const vm = useDriverHome({ navigation });
-  const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: colors.background } });
 
   return (
-    <View style={styles.container}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}>
       <DriverHomeMapSection
         mapCenter={vm.mapCenter}
         mapZoom={vm.mapZoom}
@@ -41,13 +49,16 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
         isAvailable={vm.isAvailable}
         isConnecting={vm.isConnecting}
         isLoadingStatus={vm.isLoadingStatus}
-        isDriverEligible={vm.isDriverEligible()}
+        isDriverEligible={vm.driverEligible}
         isAvailabilityRateLimited={vm.isAvailabilityRateLimited}
         isRateLimited={vm.isRateLimited}
         isUpdatingLocation={vm.isUpdatingLocation}
         hasPendingDocuments={vm.hasPendingDocuments()}
         eligibilityMessage={vm.getEligibilityMessage()}
         validationWarningMessage={vm.getValidationWarningMessage()}
+        operationalSnapshotText={vm.operationalSnapshotText}
+        showOperationalAvailabilityHint={vm.showOperationalAvailabilityHint}
+        serverBlocksReceiveRides={vm.serverBlocksReceiveRides}
         onToggleAvailability={vm.handleToggleAvailability}
         onActivate={() => vm.handleToggleAvailability(true)}
         onStatusCardLayout={vm.setStatusCardHeight}
@@ -69,3 +80,7 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
     </View>
   );
 };
+
+// StyleSheet kept for potential future use (e.g. debug borders).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _styles = StyleSheet.create({});

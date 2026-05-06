@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/atoms/Card';
 import Button from '@/components/atoms/Button';
-import { shadows, spacing, typography } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 import { useTheme } from '@/context/ThemeContext';
 import { tdh } from '@/i18n/driverHome';
 
@@ -19,6 +19,11 @@ interface DriverHomeStatusCardProps {
   hasPendingDocuments: boolean;
   eligibilityMessage: string;
   validationWarningMessage: string | null;
+  /** Linha formatada com dados de GET operational-status (API). */
+  operationalSnapshotText: string | null;
+  showOperationalAvailabilityHint: boolean;
+  /** API retornou `canReceiveRides: false`. */
+  serverBlocksReceiveRides: boolean;
   onToggleAvailability: (value: boolean) => void;
   onActivate: () => void;
   onStatusCardLayout: (height: number) => void;
@@ -43,7 +48,7 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
       left: spacing.md,
       right: spacing.md,
       zIndex: 10,
-      borderRadius: 16,
+      borderRadius: borders.radiusLarge,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       ...shadows.small,
@@ -90,8 +95,31 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: hexToRgba(colors.status.warning, 0.1),
-      borderRadius: 8,
+      borderRadius: borders.radiusSmall,
       paddingVertical: spacing.sm,
+    },
+    operationalHintBox: {
+      marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      paddingHorizontal: spacing.sm,
+      paddingBottom: spacing.sm,
+      borderTopWidth: borders.widthHairline,
+      borderTopColor: colors.border,
+      gap: spacing.xs,
+    },
+    operationalExplain: {
+      ...typography.caption,
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 18,
+      fontFamily: 'Poppins-Regular',
+    },
+    operationalSnapshot: {
+      ...typography.caption,
+      fontSize: 11,
+      color: colors.textHint,
+      lineHeight: 16,
+      fontFamily: 'Poppins-Regular',
     },
     validationWarningText: {
       ...typography.caption,
@@ -193,6 +221,14 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
             </Text>
           </View>
         )}
+        {props.showOperationalAvailabilityHint && props.operationalSnapshotText ? (
+          <View style={styles.operationalHintBox}>
+            {props.serverBlocksReceiveRides ? (
+              <Text style={styles.operationalExplain}>{tdh('cannotReceiveRidesExplain')}</Text>
+            ) : null}
+            <Text style={styles.operationalSnapshot}>{props.operationalSnapshotText}</Text>
+          </View>
+        ) : null}
       </Card>
 
       {!props.isAvailable && (

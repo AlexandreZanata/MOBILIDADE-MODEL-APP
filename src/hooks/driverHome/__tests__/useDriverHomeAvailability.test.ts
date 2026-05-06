@@ -38,6 +38,10 @@ jest.mock('@/services/websocket', () => ({
   },
 }));
 
+jest.mock('@/hooks/driverHome/waitUntilDriverSocketOpen', () => ({
+  waitUntilDriverSocketOpen: jest.fn().mockResolvedValue(true),
+}));
+
 jest.mock('@/services/backgroundLocationService', () => ({
   startDriverBackgroundLocation: jest.fn().mockResolvedValue(undefined),
   stopDriverBackgroundLocation: jest.fn().mockResolvedValue(undefined),

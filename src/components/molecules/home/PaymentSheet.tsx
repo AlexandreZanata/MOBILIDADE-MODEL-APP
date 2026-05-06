@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import { borders, shadows, spacing, typography } from '@/theme';
 import { UiPaymentMethod } from '@/models/payment/types';
 import { PaymentBrand } from '@/models/paymentMethod/types';
@@ -136,9 +137,10 @@ export const PaymentSheet = memo(function PaymentSheet({
   onClose,
 }: PaymentSheetProps) {
   const { colors, isDark } = useTheme();
+  const { isAuthenticated } = useAuth();
   const insets = useSafeAreaInsets();
   const { methods, brands, isLoading, isLoadingBrands, hasError } =
-    usePaymentSheet();
+    usePaymentSheet(undefined, undefined, isAuthenticated);
 
   // Derive the currently-selected method from the prop (controlled by parent),
   // not from the hook's internal state — they can diverge when the user taps

@@ -10,6 +10,8 @@ import {
   stopDriverBackgroundLocation,
   stopPassengerBackgroundLocation,
 } from '@/services/backgroundLocationService';
+import type { UserRole } from '@/models/Auth';
+import { isDriver } from '@/models/User';
 import { sendLocalNotification } from '@/services/notificationService';
 import { COMPLETED_OR_CANCELLED_STATUSES, STORAGE_ACTIVE_TRIP_DATA, STORAGE_ACTIVE_TRIP_ID } from './constants';
 import { mapRideToActiveTrip } from './mappers';
@@ -42,9 +44,8 @@ export function useTripProvider(isAuthenticated: boolean, user?: SessionUser | n
   const lastStatusRef = useRef<TripStatus | null>(null);
 
   const userType = useMemo<'driver' | 'passenger'>(() => {
-    const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
-    return isDriver ? 'driver' : 'passenger';
-  }, [user?.roles, user?.type]);
+    return user && isDriver({ roles: (user.roles ?? []) as UserRole[], type: user.type }) ? 'driver' : 'passenger';
+  }, [user]);
 
   const persistTrip = useCallback(async (trip: ActiveTrip | null) => {
     if (!trip?.id) return;
@@ -83,21 +84,36 @@ export function useTripProvider(isAuthenticated: boolean, user?: SessionUser | n
     await fetchActiveRide();
   }, [fetchActiveRide]);
 
+  const fetchActiveRideRef = useRef(fetchActiveRide);
+  fetchActiveRideRef.current = fetchActiveRide;
+
   useEffect(() => {
     void persistTrip(activeTrip);
   }, [activeTrip, persistTrip]);
 
+  /**
+   * Registers exactly one driver-channel listener for `active_ride` reconnect payloads.
+   * Other features use {@link driverWebSocket.setOnMessage} without overwriting this.
+   */
+  useEffect(() => {
+    if (!isAuthenticated || !user?.userId || userType !== 'driver') return;
+    const onDriverChannelMessage = (message: DriverServerMessage) => {
+      if (message.type === 'active_ride') void fetchActiveRideRef.current();
+    };
+    driverWebSocket.setOnMessage(onDriverChannelMessage);
+    return () => {
+      driverWebSocket.removeOnMessage(onDriverChannelMessage);
+    };
+  }, [isAuthenticated, user?.userId, userType]);
+
   const connectWebSocket = useCallback(async (): Promise<boolean> => {
     if (!isAuthenticated || !user?.userId || userType !== 'driver') return false;
-    driverWebSocket.setOnMessage((message: DriverServerMessage) => {
-      if (message.type === 'active_ride') void fetchActiveRide();
-    });
     driverWebSocket.setOnConnectionStateChange(setIsWebSocketConnected);
     driverWebSocket.setOnError(() => setIsWebSocketConnected(false));
     const connected = await driverWebSocket.connect();
     setIsWebSocketConnected(connected);
     return connected;
-  }, [fetchActiveRide, isAuthenticated, user?.userId, userType]);
+  }, [isAuthenticated, user?.userId, userType]);
 
   const disconnectWebSocket = useCallback(() => {
     if (userType === 'driver') driverWebSocket.disconnect();

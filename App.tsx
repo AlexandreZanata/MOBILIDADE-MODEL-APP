@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { TripProvider } from '@/context/TripContext';
 import { ChatProvider } from '@/context/ChatContext';
+import { isDriver } from '@/models/User';
 
 import { SplashScreen } from '@/screens/SplashScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
@@ -242,8 +243,7 @@ function AppNavigator() {
   const { colors } = useTheme();
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  // Detecta se o usuário é motorista através dos roles retornados na autenticação
-  const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
+  const userIsDriver = Boolean(user && isDriver(user));
 
   const onboardingScreens = [
     {
@@ -426,7 +426,7 @@ function AppNavigator() {
     >
         <Stack.Screen 
           name="Main" 
-          component={isDriver ? DriverTabs : PassengerTabs} 
+          component={userIsDriver ? DriverTabs : PassengerTabs} 
         />
         <Stack.Screen
           name="VerifyEmail"

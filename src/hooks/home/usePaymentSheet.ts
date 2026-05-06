@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { PaymentBrand, PaymentMethod as ApiPaymentMethod, PaymentMethodType } from '@/models/paymentMethod/types';
 import { UiPaymentMethod } from '@/models/payment/types';
 import { paymentMethodFacade } from '@/services/paymentMethod/paymentMethodFacade';
+import { httpClient } from '@/services/http/httpClient';
 import { tpm } from '@/i18n/paymentMethod';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,7 @@ export interface UsePaymentSheetResult {
 export function usePaymentSheet(
   onInitialLoad?: (methodId: string) => void,
   onBrandChange?: (brandId: string | null) => void,
+  enabled = true,
 ): UsePaymentSheetResult {
   const [methods, setMethods] = useState<UiPaymentMethod[]>([]);
   const [brands, setBrands] = useState<PaymentBrand[]>([]);
@@ -93,14 +95,38 @@ export function usePaymentSheet(
   const onBrandChangeRef = useRef(onBrandChange);
   onBrandChangeRef.current = onBrandChange;
 
-  // Load payment methods on mount
-  const load = useCallback(async () => {
+  /**
+   * Loads payment methods from the API.
+   *
+   * Guards against two race conditions that produce a spurious error alert:
+   * 1. **Logout race** – tokens are cleared before the component unmounts.
+   *    We check `httpClient.getAccessToken()` before firing the request; if
+   *    there is no token the user is logging out and we bail silently.
+   * 2. **Unmount race** – the component unmounts while the request is in
+   *    flight. The `cancelled` flag prevents state updates and the alert on
+   *    an already-unmounted component.
+   */
+  const load = useCallback(async (cancelled: { current: boolean }) => {
+    // No token → user is unauthenticated or logging out; skip silently.
+    if (!httpClient.getAccessToken()) return;
+
     setIsLoading(true);
     setHasError(false);
+
     const result = await paymentMethodFacade.getPaymentMethods();
+
+    // Component unmounted or logout happened while request was in flight.
+    if (cancelled.current) return;
+
     setIsLoading(false);
 
     if (!result.success || !result.data) {
+      // Only show the error if the user is still authenticated (has a token).
+      // A missing token here means logout fired mid-request — suppress the alert.
+      if (!httpClient.getAccessToken()) return;
+      // Session ended or forbidden — do not show "payment methods" error during logout/navigation.
+      if (result.status === 401 || result.status === 403) return;
+
       setHasError(true);
       Alert.alert(tpm('errorTitle'), tpm('loadMethodsFailed'));
       return;
@@ -111,20 +137,34 @@ export function usePaymentSheet(
     setSelectedId((prev) => {
       const next = prev ?? ui[0]?.id ?? null;
       if (!prev && next) {
-        onInitialLoadRef.current?.(next);
+        queueMicrotask(() => onInitialLoadRef.current?.(next));
       }
       return next;
     });
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!enabled) {
+      setMethods([]);
+      setSelectedId(null);
+      setBrands([]);
+      setSelectedBrandId(null);
+      setIsLoading(false);
+      setIsLoadingBrands(false);
+      setHasError(false);
+      return;
+    }
+    const cancelled = { current: false };
+    void load(cancelled);
+    return () => { cancelled.current = true; };
+  }, [load, enabled]);
 
   // Load card brands when a card method is selected
   const selectedMethod = methods.find((m) => m.id === selectedId) ?? null;
 
   useEffect(() => {
+    if (!enabled) return;
+
     if (!selectedMethod?.requiresCardBrand) {
       setBrands([]);
       setSelectedBrandId(null);
@@ -135,20 +175,26 @@ export function usePaymentSheet(
     let cancelled = false;
     setIsLoadingBrands(true);
 
+    if (!httpClient.getAccessToken()) {
+      setIsLoadingBrands(false);
+      return;
+    }
+
     paymentMethodFacade.getCardBrands().then((result) => {
       if (cancelled) return;
       setIsLoadingBrands(false);
+      if (!httpClient.getAccessToken()) return;
       if (!result.success || !result.data) return;
       setBrands(result.data);
       setSelectedBrandId((prev) => {
         const next = prev ?? result.data![0]?.id ?? null;
-        onBrandChangeRef.current?.(next);
+        queueMicrotask(() => onBrandChangeRef.current?.(next));
         return next;
       });
     });
 
     return () => { cancelled = true; };
-  }, [selectedMethod?.requiresCardBrand, selectedMethod?.id]);
+  }, [enabled, selectedMethod?.requiresCardBrand, selectedMethod?.id]);
 
   const selectBrand = useCallback((id: string) => {
     setSelectedBrandId(id);

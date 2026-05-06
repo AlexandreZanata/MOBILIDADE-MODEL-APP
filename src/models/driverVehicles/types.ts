@@ -48,8 +48,8 @@ export interface DriverVehiclesPage {
 
 export interface DriverVehicleSearchPage<TItem> {
   items: TItem[];
-  nextCursor?: string;
-  prevCursor?: string;
+  nextCursor?: string | null;
+  prevCursor?: string | null;
   hasMore: boolean;
 }
 
