@@ -1,11 +1,26 @@
-import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Image, Text, View } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import { GestureDetector } from 'react-native-gesture-handler';
+/**
+ * TileMap
+ *
+ * Tile-based map component. Gesture handling:
+ *   - Pan  → React Native PanResponder (single finger)
+ *   - Zoom → react-native-gesture-handler PinchGestureHandler (two fingers)
+ *
+ * Zero dependency on react-native-reanimated — works in Expo Go.
+ */
+import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Text,
+  View,
+} from 'react-native';
+import {
+  PinchGestureHandler,
+  type GestureEvent,
+  type HandlerStateChangeEvent,
+  type PinchGestureHandlerEventPayload,
+} from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -34,11 +49,14 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
 
   const {
     mapZoom,
-    animatedStyle,
-    gesture,
+    pan,
+    panResponder,
+    mapOffsets,
     viewport,
     mapWidth,
     mapHeight,
+    onPinchHandlerStateChange,
+    onPinchGestureEvent,
   } = useTileMapController({
     centerLat,
     centerLon,
@@ -53,21 +71,23 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
 
   const styles = createTileMapStyles({ colors, mapWidth, mapHeight });
 
-  // ─── Skeleton fade-in (prevents black flash while tiles load) ──────────────
-  const skeletonOpacity = useSharedValue(1);
-  const skeletonAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: skeletonOpacity.value,
-  }));
+  // ─── Skeleton fade-in (no Reanimated — plain Animated.Value) ─────────────
+  const skeletonOpacity = useRef(new Animated.Value(1)).current;
+  const [skeletonDone, setSkeletonDone] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      skeletonOpacity.value = withTiming(0, { duration: 400 });
-    }, 300);
+      Animated.timing(skeletonOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => setSkeletonDone(true));
+    }, 350);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Tile rows ─────────────────────────────────────────────────────────────
+  // ─── Tile rows ────────────────────────────────────────────────────────────
   const tileRows = useMemo(() => {
     return Array.from({ length: viewport.tilesPerCol }, (_, rowIndex) => {
       const tileY = viewport.startY + rowIndex;
@@ -81,7 +101,7 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
             style={styles.tile}
             resizeMode="cover"
             onError={() =>
-              console.warn(`Erro ao carregar tile ${mapZoom}/${tileX}/${tileY}`)
+              console.warn(`Tile load error: ${mapZoom}/${tileX}/${tileY}`)
             }
           />
         );
@@ -105,19 +125,31 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
   const driverIconNameByType: Record<
     'car' | 'motorcycle',
     React.ComponentProps<typeof Ionicons>['name']
-  > = {
-    car: 'car',
-    motorcycle: 'bicycle',
-  };
+  > = { car: 'car', motorcycle: 'bicycle' };
 
   return (
-    <View style={styles.container}>
-      {/* GestureDetector wraps the entire map area — handles pan + pinch */}
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={[styles.mapContainer, animatedStyle]}>
+    // PinchGestureHandler wraps everything — handles two-finger zoom
+    <PinchGestureHandler
+      onGestureEvent={onPinchGestureEvent as (e: GestureEvent<PinchGestureHandlerEventPayload>) => void}
+      onHandlerStateChange={onPinchHandlerStateChange as (e: HandlerStateChangeEvent<PinchGestureHandlerEventPayload>) => void}
+    >
+      <View style={styles.container}>
+        {/* Animated.View with PanResponder handles single-finger pan */}
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[
+            styles.mapContainer,
+            {
+              transform: [
+                { translateX: Animated.add(-mapOffsets.offsetX, pan.x) },
+                { translateY: Animated.add(-mapOffsets.offsetY, pan.y) },
+              ],
+            },
+          ]}
+        >
           {tileRows}
 
-          {/* ── SVG overlay (routes, arrows) ─────────────────────────────── */}
+          {/* ── SVG overlay ──────────────────────────────────────────────── */}
           <Svg
             style={{
               position: 'absolute',
@@ -135,13 +167,7 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
                 <Stop offset="0%" stopColor="#1E40AF" stopOpacity="0.9" />
                 <Stop offset="100%" stopColor="#1E40AF" stopOpacity="0.9" />
               </LinearGradient>
-              <LinearGradient
-                id="driverRouteGradient"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="0%"
-              >
+              <LinearGradient id="driverRouteGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                 <Stop offset="0%" stopColor="#34C759" stopOpacity="0.7" />
                 <Stop offset="100%" stopColor="#34C759" stopOpacity="0.7" />
               </LinearGradient>
@@ -241,9 +267,7 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
                   {
                     top: pixel.y - 18,
                     left: pixel.x - 18,
-                    transform: driver.bearing
-                      ? [{ rotate: `${driver.bearing}deg` }]
-                      : [],
+                    transform: driver.bearing ? [{ rotate: `${driver.bearing}deg` }] : [],
                   },
                 ]}
               >
@@ -267,10 +291,7 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
               );
               return (
                 <View
-                  style={[
-                    styles.driverMarker,
-                    { top: pixel.y - 18, left: pixel.x - 18 },
-                  ]}
+                  style={[styles.driverMarker, { top: pixel.y - 18, left: pixel.x - 18 }]}
                   pointerEvents="none"
                 >
                   <Ionicons name="car" size={20} color={colors.primary} />
@@ -278,7 +299,6 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
               );
             })()}
 
-          {/* ── User marker ──────────────────────────────────────────────── */}
           {props.userLocation &&
             (() => {
               const pixel = getPixelOffset(
@@ -300,7 +320,6 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
               );
             })()}
 
-          {/* ── Passenger marker ─────────────────────────────────────────── */}
           {props.passengerLocation &&
             (() => {
               const pixel = getPixelOffset(
@@ -320,7 +339,6 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
               );
             })()}
 
-          {/* ── Destination marker ───────────────────────────────────────── */}
           {props.destinationLocation &&
             (() => {
               const pixel = getPixelOffset(
@@ -340,24 +358,26 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
               );
             })()}
         </Animated.View>
-      </GestureDetector>
 
-      {/* ── Locating overlay ───────────────────────────────────────────────── */}
-      {defaults.isLocating && (
-        <View style={styles.locatingOverlay}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.locatingText}>Buscando sua localização</Text>
-        </View>
-      )}
+        {/* ── Locating overlay ─────────────────────────────────────────────── */}
+        {defaults.isLocating && (
+          <View style={styles.locatingOverlay}>
+            <ActivityIndicator size="large" color="#FFFFFF" />
+            <Text style={styles.locatingText}>Buscando sua localização</Text>
+          </View>
+        )}
 
-      {/* ── Skeleton fade-in (prevents black flash on first load) ──────────── */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.skeletonOverlay, skeletonAnimatedStyle]}
-      >
-        <ActivityIndicator size="large" color={colors.primary} />
-      </Animated.View>
-    </View>
+        {/* ── Skeleton fade-in ─────────────────────────────────────────────── */}
+        {!skeletonDone && (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.skeletonOverlay, { opacity: skeletonOpacity }]}
+          >
+            <ActivityIndicator size="large" color={colors.primary} />
+          </Animated.View>
+        )}
+      </View>
+    </PinchGestureHandler>
   );
 });
 

@@ -1,34 +1,38 @@
-import { ForwardedRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Dimensions } from 'react-native';
+/**
+ * useTileMapController
+ *
+ * Gesture handling uses ONLY:
+ *   - React Native's built-in `Animated` + `PanResponder` (pan)
+ *   - `react-native-gesture-handler` PinchGestureHandler (pinch-to-zoom)
+ *
+ * No `react-native-reanimated` — fully compatible with Expo Go.
+ */
 import {
-  Gesture,
-  ComposedGesture,
+  ForwardedRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Animated, Dimensions, PanResponder } from 'react-native';
+import { State } from 'react-native-gesture-handler';
+import type {
+  GestureEvent,
+  HandlerStateChangeEvent,
+  PinchGestureHandlerEventPayload,
 } from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { DEFAULT_ZOOM, TILE_SIZE } from '@/components/molecules/tileMap/constants';
 import { deg2num, getPixelOffset } from '@/components/molecules/tileMap/helpers';
 import { TileMapProps, TileMapRef } from '@/components/molecules/tileMap/types';
 
-/** Discrete zoom levels snapped to on pinch release. */
+// ─── Zoom levels ──────────────────────────────────────────────────────────────
 const ZOOM_LEVELS = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
-type ZoomLevel = (typeof ZOOM_LEVELS)[number];
-const ZOOM_MIN: ZoomLevel = ZOOM_LEVELS[0];
-const ZOOM_MAX: ZoomLevel = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
+const ZOOM_MIN = ZOOM_LEVELS[0];
+const ZOOM_MAX = ZOOM_LEVELS[ZOOM_LEVELS.length - 1];
 
-/** Clamp a value between min and max. */
-function clamp(value: number, min: number, max: number): number {
-  'worklet';
-  return Math.min(Math.max(value, min), max);
-}
-
-/** Snap a raw zoom to the nearest discrete level. */
 function snapZoom(raw: number): number {
-  'worklet';
   let best: number = ZOOM_LEVELS[0];
   let bestDist = Math.abs(raw - best);
   for (let i = 1; i < ZOOM_LEVELS.length; i++) {
@@ -41,6 +45,7 @@ function snapZoom(raw: number): number {
   return best;
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface UseTileMapControllerParams {
   centerLat: number;
   centerLon: number;
@@ -54,14 +59,10 @@ interface UseTileMapControllerParams {
 }
 
 export interface TileMapController {
-  /** Committed pan offset in pixels (JS thread). */
-  panX: number;
-  panY: number;
   mapZoom: number;
-  /** Animated style applied to the map container — runs on UI thread. */
-  animatedStyle: ReturnType<typeof useAnimatedStyle>;
-  /** Composed gesture (pan + pinch simultaneously). */
-  gesture: ComposedGesture;
+  pan: Animated.ValueXY;
+  panResponder: ReturnType<typeof PanResponder.create>;
+  mapOffsets: { offsetX: number; offsetY: number };
   viewport: {
     startX: number;
     startY: number;
@@ -71,8 +72,13 @@ export interface TileMapController {
   mapWidth: number;
   mapHeight: number;
   screenDimensions: { width: number; height: number };
+  /** Called by PinchGestureHandler's onHandlerStateChange */
+  onPinchHandlerStateChange: (e: HandlerStateChangeEvent<PinchGestureHandlerEventPayload>) => void;
+  /** Called by PinchGestureHandler's onGestureEvent */
+  onPinchGestureEvent: (e: GestureEvent<PinchGestureHandlerEventPayload>) => void;
 }
 
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useTileMapController({
   centerLat,
   centerLon,
@@ -89,26 +95,21 @@ export function useTileMapController({
   const [screenDimensions, setScreenDimensions] = useState(Dimensions.get('window'));
   const [currentCenterLat, setCurrentCenterLat] = useState(centerLat);
   const [currentCenterLon, setCurrentCenterLon] = useState(centerLon);
-
-  // JS-thread committed pan (used for viewport tile calculation)
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
 
-  // Whether the user has manually moved the map (suppresses auto-center)
   const userMovedMap = useRef(false);
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const lastPan = useRef({ x: 0, y: 0 });
 
-  // ─── Reanimated shared values (UI thread) ──────────────────────────────────
-  /** Accumulated pan from previous gestures. */
-  const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
-  /** Live pan delta during an active gesture. */
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  /** Base offset to center the map canvas on screen. */
-  const baseOffsetX = useSharedValue(0);
-  const baseOffsetY = useSharedValue(0);
+  // Pinch state — stored in refs so PanResponder closure always sees latest
+  const pinchStartZoomRef = useRef(mapZoom);
+  const mapZoomRef = useRef(mapZoom);
+  useEffect(() => {
+    mapZoomRef.current = mapZoom;
+  }, [mapZoom]);
 
-  // ─── Screen dimension listener ─────────────────────────────────────────────
+  // ─── Screen dimensions ───────────────────────────────────────────────────
   useEffect(() => {
     const sub = Dimensions.addEventListener('change', ({ window }) => {
       setScreenDimensions(window);
@@ -116,7 +117,7 @@ export function useTileMapController({
     return () => sub?.remove();
   }, []);
 
-  // ─── Auto-center when props change (unless user moved the map) ─────────────
+  // ─── Auto-center ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!userMovedMap.current) {
       setCurrentCenterLat(centerLat);
@@ -124,7 +125,7 @@ export function useTileMapController({
     }
   }, [centerLat, centerLon]);
 
-  // ─── Imperative handle ─────────────────────────────────────────────────────
+  // ─── Imperative handle ───────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
     centerOnLocation: (lat: number, lon: number) => {
       if (
@@ -137,18 +138,70 @@ export function useTileMapController({
       }
       setCurrentCenterLat(lat);
       setCurrentCenterLon(lon);
-      // Reset pan
-      translateX.value = withTiming(0, { duration: 300 });
-      translateY.value = withTiming(0, { duration: 300 });
-      savedTranslateX.value = 0;
-      savedTranslateY.value = 0;
+      Animated.timing(pan, {
+        toValue: { x: 0, y: 0 },
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+      lastPan.current = { x: 0, y: 0 };
       setPanX(0);
       setPanY(0);
       userMovedMap.current = false;
     },
   }));
 
-  // ─── Viewport calculation (JS thread, drives tile selection) ───────────────
+  // ─── PanResponder (pan only — pinch handled by PinchGestureHandler) ──────
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
+      onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
+      onPanResponderGrant: () => {
+        pan.setOffset(lastPan.current);
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: (_, gesture) => {
+        userMovedMap.current = true;
+        onMapMove?.();
+        pan.setValue({ x: gesture.dx, y: gesture.dy });
+      },
+      onPanResponderRelease: (_, gesture) => {
+        pan.flattenOffset();
+        const next = {
+          x: lastPan.current.x + gesture.dx,
+          y: lastPan.current.y + gesture.dy,
+        };
+        lastPan.current = next;
+        setPanX(next.x);
+        setPanY(next.y);
+      },
+    })
+  ).current;
+
+  // ─── Pinch handlers (called from PinchGestureHandler in TileMap) ─────────
+  const onPinchHandlerStateChange = useCallback(
+    (e: HandlerStateChangeEvent<PinchGestureHandlerEventPayload>) => {
+      if (e.nativeEvent.state === State.BEGAN) {
+        pinchStartZoomRef.current = mapZoomRef.current;
+      }
+    },
+    []
+  );
+
+  const onPinchGestureEvent = useCallback(
+    (e: GestureEvent<PinchGestureHandlerEventPayload>) => {
+      const scale = e.nativeEvent.scale;
+      if (!scale || scale <= 0) return;
+      const rawZoom = pinchStartZoomRef.current + Math.log2(scale);
+      const clamped = Math.min(Math.max(rawZoom, ZOOM_MIN), ZOOM_MAX);
+      const snapped = snapZoom(clamped);
+      if (snapped !== mapZoomRef.current) {
+        onZoom?.(snapped);
+      }
+    },
+    [onZoom]
+  );
+
+  // ─── Viewport ────────────────────────────────────────────────────────────
   const viewport = useMemo(() => {
     const tile = deg2num(currentCenterLat, currentCenterLon, mapZoom);
     const screenWidth = Math.max(screenDimensions.width, 400);
@@ -160,7 +213,6 @@ export function useTileMapController({
     const tilesPerCol = visibleTilesY + bufferTiles * 2;
     const panOffsetX = Math.floor(panX / TILE_SIZE);
     const panOffsetY = Math.floor(panY / TILE_SIZE);
-
     return {
       startX: tile.x - Math.floor(visibleTilesX / 2) - bufferTiles - panOffsetX,
       startY: tile.y - Math.floor(visibleTilesY / 2) - bufferTiles - panOffsetY,
@@ -172,14 +224,12 @@ export function useTileMapController({
   const mapWidth = viewport.tilesPerRow * TILE_SIZE;
   const mapHeight = viewport.tilesPerCol * TILE_SIZE;
 
-  // ─── Base offset (centers the canvas; accounts for user/driver location) ───
-  useEffect(() => {
+  // ─── Map offsets (centers canvas on user/driver location) ────────────────
+  const mapOffsets = useMemo(() => {
+    const baseOffsetX = (mapWidth - screenDimensions.width) / 2;
+    const baseOffsetY = (mapHeight - screenDimensions.height) / 2;
     const locationToCenter = userLocation || driverLocation;
-    if (!locationToCenter) {
-      baseOffsetX.value = (mapWidth - screenDimensions.width) / 2;
-      baseOffsetY.value = (mapHeight - screenDimensions.height) / 2;
-      return;
-    }
+    if (!locationToCenter) return { offsetX: baseOffsetX, offsetY: baseOffsetY };
     const pixel = getPixelOffset(
       locationToCenter.lat,
       locationToCenter.lon,
@@ -187,87 +237,31 @@ export function useTileMapController({
       viewport.startY,
       mapZoom
     );
-    baseOffsetX.value = pixel.x - screenDimensions.width / 2;
-    baseOffsetY.value = pixel.y - screenDimensions.height * verticalCenterRatio;
+    return {
+      offsetX: pixel.x - screenDimensions.width / 2,
+      offsetY: pixel.y - screenDimensions.height * verticalCenterRatio,
+    };
   }, [
-    baseOffsetX, baseOffsetY,
     driverLocation, mapHeight, mapWidth, mapZoom,
     screenDimensions, userLocation, verticalCenterRatio,
     viewport.startX, viewport.startY,
   ]);
 
-  // ─── Pinch zoom state (UI thread refs) ─────────────────────────────────────
-  /** Zoom at the moment the pinch started. */
-  const pinchStartZoom = useSharedValue(mapZoom);
-  /** Stable ref so the gesture closure always reads the latest JS zoom. */
-  const mapZoomRef = useRef(mapZoom);
-  useEffect(() => {
-    mapZoomRef.current = mapZoom;
-  }, [mapZoom]);
-
-  // ─── Gestures ──────────────────────────────────────────────────────────────
-
-  const panGesture = Gesture.Pan()
-    .minDistance(1)
-    .onStart(() => {
-      savedTranslateX.value = savedTranslateX.value + translateX.value;
-      savedTranslateY.value = savedTranslateY.value + translateY.value;
-      translateX.value = 0;
-      translateY.value = 0;
-    })
-    .onUpdate((e) => {
-      translateX.value = e.translationX;
-      translateY.value = e.translationY;
-      runOnJS(onMapMove ?? (() => undefined))();
-      runOnJS(() => { userMovedMap.current = true; })();
-    })
-    .onEnd((e) => {
-      const nextX = savedTranslateX.value + e.translationX;
-      const nextY = savedTranslateY.value + e.translationY;
-      savedTranslateX.value = nextX;
-      savedTranslateY.value = nextY;
-      translateX.value = 0;
-      translateY.value = 0;
-      runOnJS(setPanX)(-nextX);
-      runOnJS(setPanY)(-nextY);
-    });
-
-  const pinchGesture = Gesture.Pinch()
-    .onStart(() => {
-      pinchStartZoom.value = mapZoomRef.current;
-    })
-    .onUpdate((e) => {
-      const rawZoom = pinchStartZoom.value + Math.log2(e.scale);
-      const clamped = clamp(rawZoom, ZOOM_MIN, ZOOM_MAX);
-      const snapped = snapZoom(clamped);
-      if (snapped !== mapZoomRef.current && onZoom) {
-        runOnJS(onZoom)(snapped);
-      }
-    });
-
-  const gesture = Gesture.Simultaneous(panGesture, pinchGesture);
-
-  // ─── Animated style (UI thread — zero JS bridge overhead) ──────────────────
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: -baseOffsetX.value + savedTranslateX.value + translateX.value },
-      { translateY: -baseOffsetY.value + savedTranslateY.value + translateY.value },
-    ],
-  }));
-
   return {
-    panX,
-    panY,
     mapZoom,
-    animatedStyle,
-    gesture,
+    pan,
+    panResponder,
+    mapOffsets,
     viewport,
     mapWidth,
     mapHeight,
     screenDimensions,
+    onPinchHandlerStateChange,
+    onPinchGestureEvent,
   };
 }
 
+// ─── Defaults helper ──────────────────────────────────────────────────────────
 export function getTileMapDefaults(
   props: TileMapProps
 ): Required<

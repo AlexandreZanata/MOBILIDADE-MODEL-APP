@@ -33,6 +33,8 @@ export function useHome({ navigation }: UseHomeParams) {
   const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRequestedRef = useRef(false);
+  /** Suppresses the debounced search when the query was set programmatically by a selection. */
+  const suppressNextSearchRef = useRef(false);
   const inputRef = useRef<{ focus: () => void; blur: () => void; isFocused: () => boolean } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,6 +117,13 @@ export function useHome({ navigation }: UseHomeParams) {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    // Query was set by a selection — skip the search and reset the flag
+    if (suppressNextSearchRef.current) {
+      suppressNextSearchRef.current = false;
+      return;
+    }
+
     if (!searchQuery.trim()) {
       setSearchResults([]);
       setShowResults(false);
@@ -166,8 +175,12 @@ export function useHome({ navigation }: UseHomeParams) {
 
   const onSelectLocation = useCallback(async (result: HomeDestination) => {
     Keyboard.dismiss();
+
+    // Set the flag BEFORE setSearchQuery so the debounce effect sees it
+    suppressNextSearchRef.current = true;
     setSearchQuery(result.name);
     setShowResults(false);
+    setSearchResults([]);
 
     const hydrated = await homeFacade.hydrateDestination(result);
 
@@ -180,6 +193,7 @@ export function useHome({ navigation }: UseHomeParams) {
 
     if (!hasValidCoords) {
       Alert.alert(th('resolveLocationTitle'), th('resolveLocationDescription'));
+      suppressNextSearchRef.current = true; // also suppress the clear below
       setSearchQuery('');
       return;
     }
