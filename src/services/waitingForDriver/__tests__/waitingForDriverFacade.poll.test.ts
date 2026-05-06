@@ -11,6 +11,22 @@ const mockGetPassengerActiveRide = apiService.getPassengerActiveRide as jest.Moc
   typeof apiService.getPassengerActiveRide
 >;
 
+describe('waitingForDriverFacade.shouldLeaveWaitingScreen', () => {
+  it('returns true for expired / cancelled statuses', () => {
+    expect(waitingForDriverFacade.shouldLeaveWaitingScreen('EXPIRED')).toBe(true);
+    expect(waitingForDriverFacade.shouldLeaveWaitingScreen('CANCELLED')).toBe(true);
+  });
+
+  it('returns false for completed statuses that open rating', () => {
+    expect(waitingForDriverFacade.shouldLeaveWaitingScreen('COMPLETED')).toBe(false);
+    expect(waitingForDriverFacade.shouldLeaveWaitingScreen('CONCLUIDA')).toBe(false);
+  });
+
+  it('returns false for in-progress waiting', () => {
+    expect(waitingForDriverFacade.shouldLeaveWaitingScreen('REQUESTED')).toBe(false);
+  });
+});
+
 describe('waitingForDriverFacade.pollPassengerActiveRide', () => {
   beforeEach(() => {
     mockGetPassengerActiveRide.mockReset();

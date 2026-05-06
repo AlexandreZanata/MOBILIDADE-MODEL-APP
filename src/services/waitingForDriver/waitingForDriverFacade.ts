@@ -7,6 +7,8 @@
  * apiService, routingService, or reverseGeocode directly.
  */
 import { apiService } from '@/services/api';
+import { COMPLETED_OR_CANCELLED_STATUSES } from '@/context/trip/constants';
+import { normalizeTripStatus } from '@/context/trip/helpers';
 import { reverseGeocode } from '@/services/places';
 import { routingService } from '@/services/routing';
 import { parseWaitingActiveRide } from '@/models/waitingForDriver/schemas';
@@ -51,6 +53,17 @@ class WaitingForDriverFacade {
   }
 
   /**
+   * Ride ended in a way that should close the waiting screen without the post-ride rating flow
+   * (e.g. expired, cancelled). Completed trips stay for rating via {@link isFinalStatus}.
+   */
+  shouldLeaveWaitingScreen(statusRaw?: string): boolean {
+    if (!statusRaw) return false;
+    const n = normalizeTripStatus(statusRaw);
+    if (!COMPLETED_OR_CANCELLED_STATUSES.includes(n)) return false;
+    return !this.isFinalStatus(n);
+  }
+
+  /**
    * Polls GET /passengers/active-ride with explicit not-found vs transient error.
    * Per API docs, 404 means no active ride — caller should return the user to home.
    */
@@ -61,7 +74,12 @@ class WaitingForDriverFacade {
       return { kind: 'error' };
     }
 
-    const parsed = parseWaitingActiveRide(response.data);
+    let parsed;
+    try {
+      parsed = parseWaitingActiveRide(response.data);
+    } catch {
+      return { kind: 'error' };
+    }
 
     const origin =
       parsed.origin?.lat !== undefined

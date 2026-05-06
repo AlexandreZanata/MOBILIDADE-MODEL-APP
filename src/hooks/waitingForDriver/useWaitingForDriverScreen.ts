@@ -140,7 +140,12 @@ export function useWaitingForDriverScreen({
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const rideId = activeTrip?.id ?? initialTripId ?? null;
+  /** Keeps trip id from navigation after TripContext clears the ride (404 / terminal sync). */
+  const navTripIdRef = useRef(initialTripId);
+  useEffect(() => {
+    if (initialTripId) navTripIdRef.current = initialTripId;
+  }, [initialTripId]);
+  const rideId = activeTrip?.id ?? navTripIdRef.current ?? null;
   const isSearching = useMemo(
     () => !driver || !waitingForDriverFacade.isDriverAccepted(tripStatus),
     [driver, tripStatus],
@@ -266,6 +271,10 @@ export function useWaitingForDriverScreen({
       if (poll.kind === 'error') {
         return;
       }
+      if (waitingForDriverFacade.shouldLeaveWaitingScreen(poll.snapshot.status)) {
+        exitWhenRideInactive();
+        return;
+      }
       applySnapshot(poll.snapshot);
     } finally {
       syncRef.current = false;
@@ -315,7 +324,7 @@ export function useWaitingForDriverScreen({
   // ── Actions ─────────────────────────────────────────────────────────────
   const onToggleChat = useCallback(() => {
     if (!rideId) {
-      Alert.alert(twfd('errorTitle'), twfd('missingRide'));
+      onNavigateMain();
       return;
     }
     if (isChatOpen && currentRideId === rideId) {
@@ -323,7 +332,7 @@ export function useWaitingForDriverScreen({
       return;
     }
     openChat(rideId, driver?.name ?? 'Motorista', undefined, tripStatus, driver?.id);
-  }, [closeChat, currentRideId, driver?.id, driver?.name, isChatOpen, openChat, rideId, tripStatus]);
+  }, [closeChat, currentRideId, driver?.id, driver?.name, isChatOpen, onNavigateMain, openChat, rideId, tripStatus]);
 
   const onCancelRide = useCallback(async () => {
     if (activeTrip?.id) {
