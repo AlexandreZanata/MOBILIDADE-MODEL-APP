@@ -22,6 +22,12 @@ export interface ThemeColors {
   mapBg: string;
   /** Modal / dialog scrim */
   scrim: string;
+  /** Profile screen hero (top banner) */
+  profileHeroBg: string;
+  profileHeroText: string;
+  profileHeroMuted: string;
+  /** Label text on accent-filled profile badge */
+  onAccent: string;
   status: {
     success: string;
     error: string;

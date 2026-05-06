@@ -15,6 +15,10 @@ export const lightColors: ThemeColors = {
   shadow: 'rgba(0,0,0,0.12)',
   mapBg: '#E8F0E8',
   scrim: 'rgba(0,0,0,0.5)',
+  profileHeroBg: '#1A2130',
+  profileHeroText: '#FFFFFF',
+  profileHeroMuted: '#A8B0C0',
+  onAccent: '#FFFFFF',
   status: {
     success: '#3B6D11',
     error: '#A32D2D',
@@ -38,6 +42,10 @@ export const darkColors: ThemeColors = {
   shadow: 'rgba(0,0,0,0.0)',
   mapBg: '#1A2420',
   scrim: 'rgba(0,0,0,0.6)',
+  profileHeroBg: '#121620',
+  profileHeroText: '#F5F5F0',
+  profileHeroMuted: '#8E8E93',
+  onAccent: '#FFFFFF',
   status: {
     success: '#639922',
     error: '#E24B4A',

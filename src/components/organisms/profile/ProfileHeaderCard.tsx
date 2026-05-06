@@ -1,7 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Card } from '@/components/atoms/Card';
 import { useTheme } from '@/context/ThemeContext';
 import { borders, spacing, typography } from '@/theme';
 
@@ -10,21 +9,21 @@ const CAMERA_BADGE_SIZE = spacing.xxl;
 
 interface ProfileHeaderCardProps {
   userName: string;
+  email: string;
   accountType: string;
   profilePhotoUrl?: string;
   isUploadingPhoto: boolean;
   isDriverAccount: boolean;
-  ratingLine?: string;
   onEditPhoto(): void;
 }
 
 export function ProfileHeaderCard({
   userName,
+  email,
   accountType,
   profilePhotoUrl,
   isUploadingPhoto,
   isDriverAccount,
-  ratingLine,
   onEditPhoto,
 }: ProfileHeaderCardProps) {
   const { colors } = useTheme();
@@ -36,14 +35,23 @@ export function ProfileHeaderCard({
     .toUpperCase();
 
   const styles = StyleSheet.create({
-    card: { marginHorizontal: spacing.md },
-    inner: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xxl },
+    hero: {
+      backgroundColor: colors.profileHeroBg,
+      borderBottomLeftRadius: borders.radiusXL,
+      borderBottomRightRadius: borders.radiusXL,
+      paddingTop: spacing.xxl,
+      paddingBottom: spacing.xxl + spacing.sm,
+      paddingHorizontal: spacing.lg,
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.xs,
+    },
+    inner: { alignItems: 'center', gap: spacing.sm },
     avatarWrap: { position: 'relative' },
     avatar: {
       width: AVATAR_SIZE,
       height: AVATAR_SIZE,
       borderRadius: borders.radiusFull,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.profileHeroMuted,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
@@ -51,7 +59,7 @@ export function ProfileHeaderCard({
       borderColor: colors.accent,
     },
     avatarImage: { width: '100%', height: '100%' },
-    initials: { ...typography.h1, color: colors.primary },
+    initials: { ...typography.h1, color: colors.profileHeroText },
     camBadge: {
       position: 'absolute',
       right: 0,
@@ -59,28 +67,29 @@ export function ProfileHeaderCard({
       width: CAMERA_BADGE_SIZE,
       height: CAMERA_BADGE_SIZE,
       borderRadius: CAMERA_BADGE_SIZE / 2,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.accent,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: borders.widthHairline,
-      borderColor: colors.card,
+      borderColor: colors.profileHeroBg,
     },
-    name: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
+    name: { ...typography.title, color: colors.profileHeroText, textAlign: 'center' },
+    email: { ...typography.body, color: colors.profileHeroMuted, textAlign: 'center' },
     badge: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      backgroundColor: colors.accentSoft,
+      backgroundColor: colors.accent,
       borderRadius: borders.radiusFull,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
     },
-    badgeText: { ...typography.caption, fontWeight: '500', color: colors.accent },
-    ratingText: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
+    badgeText: { ...typography.caption, fontWeight: '600', color: colors.onAccent },
   });
 
   return (
-    <Card style={styles.card}>
+    <View style={styles.hero}>
       <View style={styles.inner}>
         <Pressable
           onPress={onEditPhoto}
@@ -97,23 +106,23 @@ export function ProfileHeaderCard({
           </View>
           <View style={styles.camBadge}>
             {isUploadingPhoto ? (
-              <ActivityIndicator size="small" color={colors.card} />
+              <ActivityIndicator size="small" color={colors.onAccent} />
             ) : (
-              <Ionicons name="camera" size={spacing.md} color={colors.card} />
+              <Ionicons name="camera" size={spacing.md} color={colors.onAccent} />
             )}
           </View>
         </Pressable>
         <Text style={styles.name}>{userName}</Text>
+        <Text style={styles.email}>{email}</Text>
         <View style={styles.badge}>
           <Ionicons
             name={isDriverAccount ? 'shield-checkmark' : 'person'}
             size={spacing.md}
-            color={colors.accent}
+            color={colors.onAccent}
           />
           <Text style={styles.badgeText}>{accountType}</Text>
         </View>
-        {ratingLine ? <Text style={styles.ratingText}>{ratingLine}</Text> : null}
       </View>
-    </Card>
+    </View>
   );
 }

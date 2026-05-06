@@ -27,6 +27,7 @@ const profileMessages = {
   ratingPlural: 'avaliações',
   ridesCount: '{{count}} corridas',
   ratingWithRides: '★ {{rating}} · {{count}} corridas',
+  ratingReviewsParen: '({{count}})',
 
   // ── Personal info fields ─────────────────────────────────────────────────
   name: 'Nome',
@@ -74,6 +75,7 @@ const profileMessages = {
 
   // ── Settings items ───────────────────────────────────────────────────────
   paymentMethods: 'Métodos de pagamento',
+  changePassword: 'Alterar senha',
   savedAddresses: 'Endereços salvos',
   coupons: 'Cupons e descontos',
   history: 'Histórico de corridas',

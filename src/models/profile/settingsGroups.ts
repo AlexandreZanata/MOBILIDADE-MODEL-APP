@@ -24,6 +24,13 @@ export function getProfileSettingsGroups(
           action: 'payment-methods',
         },
         {
+          id: 'change-password',
+          label: tp('changePassword'),
+          icon: 'lock-closed-outline',
+          right: { type: 'chevron' },
+          action: 'change-password',
+        },
+        {
           id: 'saved-addresses',
           label: tp('savedAddresses'),
           icon: 'location-outline',

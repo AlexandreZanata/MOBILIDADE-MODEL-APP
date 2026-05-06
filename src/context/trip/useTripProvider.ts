@@ -59,17 +59,29 @@ export function useTripProvider(isAuthenticated: boolean, user?: SessionUser | n
 
   const fetchActiveRide = useCallback(async (): Promise<ActiveTrip | null> => {
     const response = userType === 'driver' ? await apiService.getDriverActiveRide() : await apiService.getPassengerActiveRide();
-    if (!response.success || !response.data) return null;
+    if (!response.success || !response.data) {
+      if (response.status === 404) {
+        setActiveTrip(null);
+        await clearPersistedTrip();
+      }
+      return null;
+    }
     const data = toRecord(response.data);
     if (!data) return null;
     const mapped = mapRideToActiveTrip(data);
-    if (COMPLETED_OR_CANCELLED_STATUSES.includes(mapped.status)) return null;
+    if (COMPLETED_OR_CANCELLED_STATUSES.includes(mapped.status)) {
+      setActiveTrip(null);
+      await clearPersistedTrip();
+      return null;
+    }
     setActiveTrip(mapped);
     await persistTrip(mapped);
     return mapped;
-  }, [persistTrip, userType]);
+  }, [clearPersistedTrip, persistTrip, userType]);
 
-  const refreshTrip = useCallback(async () => undefined, []);
+  const refreshTrip = useCallback(async () => {
+    await fetchActiveRide();
+  }, [fetchActiveRide]);
 
   useEffect(() => {
     void persistTrip(activeTrip);

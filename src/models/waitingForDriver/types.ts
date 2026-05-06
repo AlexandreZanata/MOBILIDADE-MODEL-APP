@@ -29,6 +29,12 @@ export interface WaitingTripSnapshot {
   driver: WaitingDriver | null;
 }
 
+/** Result of polling GET /passengers/active-ride while on the waiting screen. */
+export type PassengerActiveRidePoll =
+  | { kind: 'ok'; snapshot: WaitingTripSnapshot }
+  | { kind: 'not_found' }
+  | { kind: 'error' };
+
 export interface WaitingActiveRideResponse {
   id: string;
   status?: string;

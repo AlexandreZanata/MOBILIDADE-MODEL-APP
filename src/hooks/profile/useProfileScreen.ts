@@ -28,7 +28,7 @@ export function useProfileScreen() {
   const [rating, setRating] = useState<ProfileRating | null>(null);
   const [cachedPhotoUrl, setCachedPhotoUrl] = useState<string | undefined>(undefined);
   const [notifGranted, setNotifGranted] = useState(false);
-  const [personalCollapsed, setPersonalCollapsed] = useState(false);
+  const [personalCollapsed, setPersonalCollapsed] = useState(true);
   const [revealedCpf, setRevealedCpf] = useState(false);
   const [revealedPhone, setRevealedPhone] = useState(false);
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -68,11 +68,15 @@ export function useProfileScreen() {
     return revealedPhone ? phoneRaw : maskPhoneDisplay(phoneRaw);
   }, [phoneRaw, revealedPhone]);
 
-  const ratingLine = useMemo(() => {
-    if (!rating || rating.totalRatings < 1) return undefined;
-    const r = Number(rating.currentRating);
-    if (Number.isNaN(r) || r <= 0) return undefined;
-    return tp('ratingWithRides', { rating: r.toFixed(1), count: String(rating.totalRatings) });
+  const profileRatingUi = useMemo(() => {
+    if (!rating || rating.totalRatings < 1) return null;
+    const r10 = Number(rating.currentRating);
+    if (Number.isNaN(r10) || r10 <= 0) return null;
+    return {
+      ratingTenScale: r10,
+      displayValue: (r10 / 2).toFixed(1),
+      totalRatings: rating.totalRatings,
+    };
   }, [rating]);
 
   const profilePhotoUrl = useMemo(() => {
@@ -245,7 +249,7 @@ export function useProfileScreen() {
     userName,
     accountType,
     userTypeForUpload,
-    ratingLine,
+    profileRatingUi,
     profilePhotoUrl,
     userIsDriver,
     settingsGroups,

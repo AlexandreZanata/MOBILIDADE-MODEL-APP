@@ -15,6 +15,7 @@
  * Data flow: Hook → Facade → API / WebSocket (no direct Axios/Socket in hook)
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { WaitingTripSnapshot } from '@/models/waitingForDriver/types';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -85,7 +86,7 @@ export function useWaitingForDriverScreen({
 }: UseWaitingForDriverScreenParams) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { activeTrip, cancelTrip, refreshTrip } = useTrip();
+  const { activeTrip, cancelTrip, refreshTrip, clearTrip } = useTrip();
   const { openChat, closeChat, isChatOpen, currentRideId, updateRideStatus } = useChat();
 
   // ── Domain state ────────────────────────────────────────────────────────
@@ -129,6 +130,8 @@ export function useWaitingForDriverScreen({
 
   // ── Route points for TileMap ────────────────────────────────────────────
   const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
+
+  const exitedNotFoundRef = useRef(false);
 
   // ── Rating state ────────────────────────────────────────────────────────
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
@@ -221,20 +224,20 @@ export function useWaitingForDriverScreen({
   // ── Polling sync ────────────────────────────────────────────────────────
   const syncRef = useRef(false);
 
-  const syncSnapshot = useCallback(async () => {
-    if (!rideId || syncRef.current) return;
-    syncRef.current = true;
-    try {
-      await refreshTrip();
-      const snapshot = await waitingForDriverFacade.fetchActiveRideSnapshot(rideId);
-      if (!snapshot) return;
+  const exitWhenRideInactive = useCallback(() => {
+    if (exitedNotFoundRef.current) return;
+    exitedNotFoundRef.current = true;
+    clearTrip();
+    onNavigateMain();
+  }, [clearTrip, onNavigateMain]);
 
+  const applySnapshot = useCallback(
+    (snapshot: WaitingTripSnapshot) => {
       setTripStatus(snapshot.status);
       setEstimatedFare(snapshot.estimatedFare);
       setDriver(snapshot.driver);
       updateRideStatus(snapshot.status);
 
-      // Update coordinates only if the snapshot has valid ones
       if (snapshot.origin && isValidCoords(snapshot.origin)) {
         setTripOrigin((prev) => prev ?? snapshot.origin);
       }
@@ -242,15 +245,32 @@ export function useWaitingForDriverScreen({
         const dest = { lat: snapshot.destination.lat, lon: snapshot.destination.lng };
         if (isValidCoords(dest)) {
           setTripDestination((prev) => prev ?? dest);
-          // Trigger geocoding/routing if we didn't have coords before
           void geocodeAddresses(snapshot.origin, dest);
           void calculateRoute(snapshot.origin, dest);
         }
       }
+    },
+    [calculateRoute, geocodeAddresses, updateRideStatus]
+  );
+
+  const syncSnapshot = useCallback(async () => {
+    if (!rideId || syncRef.current) return;
+    syncRef.current = true;
+    try {
+      await refreshTrip();
+      const poll = await waitingForDriverFacade.pollPassengerActiveRide(rideId);
+      if (poll.kind === 'not_found') {
+        exitWhenRideInactive();
+        return;
+      }
+      if (poll.kind === 'error') {
+        return;
+      }
+      applySnapshot(poll.snapshot);
     } finally {
       syncRef.current = false;
     }
-  }, [calculateRoute, geocodeAddresses, refreshTrip, rideId, updateRideStatus]);
+  }, [applySnapshot, exitWhenRideInactive, refreshTrip, rideId]);
 
   useEffect(() => {
     if (!rideId) return;
@@ -306,17 +326,22 @@ export function useWaitingForDriverScreen({
   }, [closeChat, currentRideId, driver?.id, driver?.name, isChatOpen, openChat, rideId, tripStatus]);
 
   const onCancelRide = useCallback(async () => {
-    if (!rideId) {
-      Alert.alert(twfd('errorTitle'), twfd('missingRide'));
+    if (activeTrip?.id) {
+      const response = await cancelTrip('Cancelado pelo passageiro');
+      if (!response.success) {
+        Alert.alert(twfd('errorTitle'), response.error ?? twfd('missingRide'));
+        return;
+      }
+      onNavigateMain();
       return;
     }
-    const response = await cancelTrip('Cancelado pelo passageiro');
-    if (!response.success) {
-      Alert.alert(twfd('errorTitle'), response.error ?? twfd('missingRide'));
+    if (rideId) {
+      clearTrip();
+      onNavigateMain();
       return;
     }
     onNavigateMain();
-  }, [cancelTrip, onNavigateMain, rideId]);
+  }, [activeTrip?.id, cancelTrip, clearTrip, onNavigateMain, rideId]);
 
   const onSubmitRating = useCallback(async () => {
     if (!rideId) return;

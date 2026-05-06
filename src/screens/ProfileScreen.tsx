@@ -4,6 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '@/context/ThemeContext';
 import { spacing } from '@/theme';
 import { ProfileHeaderCard } from '@/components/organisms/profile/ProfileHeaderCard';
+import { ProfileIdentitySummaryCard } from '@/components/molecules/profile/ProfileIdentitySummaryCard';
+import { ProfileRatingStarsCard } from '@/components/molecules/profile/ProfileRatingStarsCard';
 import { ProfilePersonalInfoSection } from '@/components/organisms/profile/ProfilePersonalInfoSection';
 import { ProfileSettingsGroups } from '@/components/organisms/profile/ProfileSettingsGroups';
 import { ProfileDangerZone } from '@/components/molecules/profile/ProfileDangerZone';
@@ -41,13 +43,21 @@ export const ProfileScreen: React.FC = () => {
       >
         <ProfileHeaderCard
           userName={vm.userName}
+          email={vm.emailDisplay}
           accountType={vm.accountType}
           profilePhotoUrl={vm.profilePhotoUrl}
           isUploadingPhoto={vm.isUploadingPhoto}
           isDriverAccount={vm.userIsDriver}
-          ratingLine={vm.ratingLine}
           onEditPhoto={vm.handlePhotoUpload}
         />
+        <ProfileIdentitySummaryCard name={vm.nameDisplay} email={vm.emailDisplay} />
+        {vm.profileRatingUi ? (
+          <ProfileRatingStarsCard
+            ratingTenScale={vm.profileRatingUi.ratingTenScale}
+            displayValue={vm.profileRatingUi.displayValue}
+            totalRatings={vm.profileRatingUi.totalRatings}
+          />
+        ) : null}
         <ProfilePersonalInfoSection
           isLoading={vm.isLoading}
           isCollapsed={vm.personalCollapsed}

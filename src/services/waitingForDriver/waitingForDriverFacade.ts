@@ -10,7 +10,7 @@ import { apiService } from '@/services/api';
 import { reverseGeocode } from '@/services/places';
 import { routingService } from '@/services/routing';
 import { parseWaitingActiveRide } from '@/models/waitingForDriver/schemas';
-import type { WaitingTripSnapshot } from '@/models/waitingForDriver/types';
+import type { PassengerActiveRidePoll, WaitingTripSnapshot } from '@/models/waitingForDriver/types';
 import type { RoutePoint } from '@/components/molecules/TileMap';
 
 // ─── Status sets ──────────────────────────────────────────────────────────────
@@ -51,12 +51,15 @@ class WaitingForDriverFacade {
   }
 
   /**
-   * Fetches the current active ride snapshot from the API.
-   * Returns null on any failure so callers can handle gracefully.
+   * Polls GET /passengers/active-ride with explicit not-found vs transient error.
+   * Per API docs, 404 means no active ride — caller should return the user to home.
    */
-  async fetchActiveRideSnapshot(fallbackRideId: string): Promise<WaitingTripSnapshot | null> {
+  async pollPassengerActiveRide(fallbackRideId: string): Promise<PassengerActiveRidePoll> {
     const response = await apiService.getPassengerActiveRide();
-    if (!response.success || !response.data) return null;
+    if (!response.success || !response.data) {
+      if (response.status === 404) return { kind: 'not_found' };
+      return { kind: 'error' };
+    }
 
     const parsed = parseWaitingActiveRide(response.data);
 
@@ -70,7 +73,7 @@ class WaitingForDriverFacade {
         ? { lat: parsed.destination.lat, lng: parsed.destination.lng ?? parsed.destination.lon ?? 0 }
         : null;
 
-    return {
+    const snapshot: WaitingTripSnapshot = {
       rideId: parsed.id || fallbackRideId,
       status: parsed.status ?? 'REQUESTED',
       estimatedFare: parsed.final_fare ?? parsed.estimated_fare ?? null,
@@ -92,6 +95,16 @@ class WaitingForDriverFacade {
           }
         : null,
     };
+    return { kind: 'ok', snapshot };
+  }
+
+  /**
+   * Fetches the current active ride snapshot from the API.
+   * Returns null on any failure so callers can handle gracefully.
+   */
+  async fetchActiveRideSnapshot(fallbackRideId: string): Promise<WaitingTripSnapshot | null> {
+    const poll = await this.pollPassengerActiveRide(fallbackRideId);
+    return poll.kind === 'ok' ? poll.snapshot : null;
   }
 
   /**

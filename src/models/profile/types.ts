@@ -30,6 +30,7 @@ export interface ProfileMutationResult {
 
 export type ProfileMenuAction =
   | 'payment-methods'
+  | 'change-password'
   | 'history'
   | 'saved-addresses'
   | 'coupons'
