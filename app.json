@@ -22,7 +22,14 @@
     },
     "web": {},
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "react-native-image-picker",
+        {
+          "cameraPermissionText": "Precisamos de acesso à câmera para atualizar sua foto de perfil.",
+          "photoLibraryPermissionText": "Precisamos de acesso às suas fotos para atualizar sua foto de perfil."
+        }
+      ]
     ]
   }
 }

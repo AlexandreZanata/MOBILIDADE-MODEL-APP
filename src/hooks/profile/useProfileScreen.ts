@@ -151,51 +151,70 @@ export function useProfileScreen(navigation: NavigationShape) {
     [ensureToken, refreshProfile]
   );
 
-  const processPickerResponse = useCallback((response: ImagePickerResponse, onFile: (fileUri: string) => Promise<void>) => {
-    const fileUri = response.assets?.[0]?.uri;
-    if (response.didCancel || !fileUri) return;
-    if (response.errorCode) {
-      Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
-      return;
-    }
-    onFile(fileUri);
-  }, []);
+  const processPickerResponse = useCallback(
+    async (response: ImagePickerResponse, onFile: (fileUri: string) => Promise<void>) => {
+      const fileUri = response.assets?.[0]?.uri;
+      if (response.didCancel || !fileUri) return;
+      if (response.errorCode) {
+        Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
+        return;
+      }
+      try {
+        await onFile(fileUri);
+      } catch {
+        Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
+      }
+    },
+    []
+  );
 
-  const requestUploadSource = useCallback((onFile: (fileUri: string) => Promise<void>) => {
-    Alert.alert(tp('chooseImageTitle'), tp('chooseImageDescription'), [
-      {
-        text: tp('gallery'),
-        onPress: async () => {
-          const granted = await requestMediaLibraryPermission();
-          if (!granted) {
-            Alert.alert(tp('permissionTitle'), tp('mediaPermissionDescription'), [
-              { text: tp('cancel'), style: 'cancel' },
-              { text: tp('openSettings'), onPress: () => openAppSettings() },
-            ]);
-            return;
-          }
-          launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8 }, (response) =>
-            processPickerResponse(response, onFile)
-          );
+  const requestUploadSource = useCallback(
+    (onFile: (fileUri: string) => Promise<void>) => {
+      Alert.alert(tp('chooseImageTitle'), tp('chooseImageDescription'), [
+        {
+          text: tp('gallery'),
+          onPress: () => {
+            // Run async work outside the Alert callback to avoid Android race condition
+            void (async () => {
+              const granted = await requestMediaLibraryPermission();
+              if (!granted) {
+                Alert.alert(tp('permissionTitle'), tp('mediaPermissionDescription'), [
+                  { text: tp('cancel'), style: 'cancel' },
+                  { text: tp('openSettings'), onPress: () => openAppSettings() },
+                ]);
+                return;
+              }
+              launchImageLibrary(
+                { mediaType: 'photo', selectionLimit: 1, quality: 0.8 },
+                (response) => void processPickerResponse(response, onFile)
+              );
+            })();
+          },
         },
-      },
-      {
-        text: tp('camera'),
-        onPress: async () => {
-          const granted = await requestCameraPermission();
-          if (!granted) {
-            Alert.alert(tp('permissionTitle'), tp('cameraPermissionDescription'), [
-              { text: tp('cancel'), style: 'cancel' },
-              { text: tp('openSettings'), onPress: () => openAppSettings() },
-            ]);
-            return;
-          }
-          launchCamera({ mediaType: 'photo', quality: 0.8 }, (response) => processPickerResponse(response, onFile));
+        {
+          text: tp('camera'),
+          onPress: () => {
+            void (async () => {
+              const granted = await requestCameraPermission();
+              if (!granted) {
+                Alert.alert(tp('permissionTitle'), tp('cameraPermissionDescription'), [
+                  { text: tp('cancel'), style: 'cancel' },
+                  { text: tp('openSettings'), onPress: () => openAppSettings() },
+                ]);
+                return;
+              }
+              launchCamera(
+                { mediaType: 'photo', quality: 0.8, saveToPhotos: false },
+                (response) => void processPickerResponse(response, onFile)
+              );
+            })();
+          },
         },
-      },
-      { text: tp('cancel'), style: 'cancel' },
-    ]);
-  }, [processPickerResponse]);
+        { text: tp('cancel'), style: 'cancel' },
+      ]);
+    },
+    [processPickerResponse]
+  );
 
   const handlePhotoUpload = useCallback(() => {
     requestUploadSource(async (fileUri) => {
