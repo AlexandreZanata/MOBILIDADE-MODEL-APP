@@ -78,18 +78,18 @@ export function usePaymentMethod({ navigation, routeParams }: UsePaymentMethodPa
     [methods, selectedMethod]
   );
 
-  const loadMethodsFromApi = useCallback(async () => {
+  const loadMethodsFromApi = useCallback(async (currentLength: number, currentSelected: string | null) => {
     const response = await paymentMethodFacade.getPaymentMethods();
     if (!response.success || !response.data) {
-      if (methods.length === 0) Alert.alert(tpm('errorTitle'), tpm('loadMethodsFailed'));
+      if (currentLength === 0) Alert.alert(tpm('errorTitle'), tpm('loadMethodsFailed'));
       return;
     }
     setMethods(response.data);
-    if (!selectedMethod && response.data.length > 0) {
+    if (!currentSelected && response.data.length > 0) {
       setSelectedMethod(response.data[0].id);
     }
     await saveCache(CACHE_KEYS.methods, CACHE_KEYS.methodsTimestamp, response.data);
-  }, [methods.length, selectedMethod]);
+  }, []);
 
   const loadMethods = useCallback(async () => {
     setIsLoadingMethods(true);
@@ -98,11 +98,11 @@ export function usePaymentMethod({ navigation, routeParams }: UsePaymentMethodPa
       if (cached && cached.length > 0) {
         setMethods(cached);
         setSelectedMethod(cached[0].id);
-        setIsLoadingMethods(false);
-        await loadMethodsFromApi();
+        // Background refresh with snapshot values — does NOT recreate on state change
+        void loadMethodsFromApi(cached.length, cached[0].id);
         return;
       }
-      await loadMethodsFromApi();
+      await loadMethodsFromApi(0, null);
     } finally {
       setIsLoadingMethods(false);
     }
@@ -260,6 +260,9 @@ export function usePaymentMethod({ navigation, routeParams }: UsePaymentMethodPa
         createRide.data.final_fare ??
         null;
 
+      // Reset before navigating so the component doesn't stay in submitting
+      // state if it remains mounted (e.g. modal presentation)
+      setIsSubmitting(false);
       navigation.navigate('WaitingForDriver', {
         userLocation: routeParams.origin,
         destination: routeParams.destination,
@@ -267,6 +270,8 @@ export function usePaymentMethod({ navigation, routeParams }: UsePaymentMethodPa
         tripId,
         estimatedFare,
       });
+    } catch (err) {
+      Alert.alert(tpm('errorTitle'), tpm('createRideFailed'));
     } finally {
       setIsSubmitting(false);
     }
