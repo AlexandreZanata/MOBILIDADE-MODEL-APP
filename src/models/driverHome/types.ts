@@ -10,7 +10,8 @@ export interface PendingTripData {
   estimated_fare: number;
   distance_km?: number;
   duration_seconds?: number;
-  assignment_expires_at: string;
+  /** ISO expiry for the offer; optional when the API omits it (UI uses a local fallback). */
+  assignment_expires_at?: string;
   category?: string;
   requested_at?: string;
   passenger?: {

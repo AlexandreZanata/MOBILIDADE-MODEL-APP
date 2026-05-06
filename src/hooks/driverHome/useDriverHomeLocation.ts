@@ -35,6 +35,9 @@ export function useDriverHomeLocation({ isAvailable, isWebSocketConnected, userI
   const lastLocationRequestRef = useRef(0);
   const lastLocationUpdateRef = useRef(0);
   const lastCacheSaveRef = useRef(0);
+  /** Avoid stale `isAvailable` inside the location loop (parent sync can lag one frame). */
+  const isAvailableRef = useRef(isAvailable);
+  isAvailableRef.current = isAvailable;
 
   const isLocationStale = useCallback(
     () => (!lastLocationUpdateRef.current ? true : Date.now() - lastLocationUpdateRef.current > DRIVER_HOME_TIMERS.LOCATION_STALE_MS),
@@ -110,7 +113,7 @@ export function useDriverHomeLocation({ isAvailable, isWebSocketConnected, userI
   const startLocationUpdates = useCallback(() => {
     if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
     locationIntervalRef.current = setInterval(async () => {
-      if (!isAvailable) return;
+      if (!isAvailableRef.current) return;
       try {
         const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         const next = { lat: location.coords.latitude, lon: location.coords.longitude, timestamp: location.timestamp };
@@ -120,14 +123,15 @@ export function useDriverHomeLocation({ isAvailable, isWebSocketConnected, userI
           await saveLocationToCache({ lat: next.lat, lon: next.lon });
         }
         if (isRateLimited) setIsRateLimited(false);
-        if (isWebSocketConnected && driverWebSocket.isConnected) {
+        // Single source of truth — React `isWebSocketConnected` can be briefly stale vs native WS open.
+        if (driverWebSocket.isConnected) {
           driverWebSocket.sendLocationUpdate({ lat: next.lat, lng: next.lon });
         }
       } catch {
         // no-op para manter loop resiliente
       }
     }, DRIVER_HOME_TIMERS.LOCATION_LOOP_MS);
-  }, [applyLocationUpdate, hasUserMovedMap, isAvailable, isRateLimited, isWebSocketConnected, saveLocationToCache]);
+  }, [applyLocationUpdate, hasUserMovedMap, isRateLimited, saveLocationToCache]);
 
   const stopLocationUpdates = useCallback(() => {
     if (locationIntervalRef.current) {
@@ -180,11 +184,25 @@ export function useDriverHomeLocation({ isAvailable, isWebSocketConnected, userI
     if (isAvailable && currentLocation) {
       startLocationUpdates();
       startNearbyUpdates();
-      return;
+      return () => {
+        stopLocationUpdates();
+        stopNearbyUpdates();
+      };
     }
     stopLocationUpdates();
     stopNearbyUpdates();
+    return undefined;
   }, [currentLocation, isAvailable, startLocationUpdates, startNearbyUpdates, stopLocationUpdates, stopNearbyUpdates]);
+
+  /**
+   * Immediate `location_update` when availability + coords exist and the socket opens (per WS docs / GEO index).
+   * The periodic loop may start slightly later; this primes Redis GEO without waiting for the next tick.
+   */
+  useEffect(() => {
+    if (!isAvailable || !currentLocation) return;
+    if (!driverWebSocket.isConnected) return;
+    driverWebSocket.sendLocationUpdate({ lat: currentLocation.lat, lng: currentLocation.lon });
+  }, [isAvailable, currentLocation?.lat, currentLocation?.lon, isWebSocketConnected]);
 
   const handleRecenterLocation = useCallback(async () => {
     if (isRequestingLocationRef.current) return;

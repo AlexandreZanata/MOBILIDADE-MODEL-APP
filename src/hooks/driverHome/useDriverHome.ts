@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -47,9 +47,16 @@ export function useDriverHome({ navigation }: UseDriverHomeParams) {
 
   const socket = useDriverHomeSocket({ navigation });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setIsAvailableForLocation(availability.isAvailable);
   }, [availability.isAvailable]);
+
+  /** Mantém WSS ligado enquanto disponível (ex.: retorno ao app ou falha de rede). */
+  useEffect(() => {
+    if (!availability.isAvailable) return;
+    if (driverWebSocket.isConnected) return;
+    void connectWebSocket();
+  }, [availability.isAvailable, connectWebSocket, isWebSocketConnected]);
 
   useFocusEffect(
     useCallback(() => {

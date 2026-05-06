@@ -189,6 +189,8 @@ export async function getDriverActiveRide(): Promise<ApiResponse<DriverActiveRid
 }
 
 export function mapRideOfferToPendingTrip(message: DriverRideOfferMessage): PendingTripData {
+  const expires =
+    message.assignment_expires_at ?? new Date(Date.now() + 120_000).toISOString();
   return {
     trip_id: message.trip_id,
     origin: message.origin,
@@ -196,12 +198,84 @@ export function mapRideOfferToPendingTrip(message: DriverRideOfferMessage): Pend
     estimated_fare: message.estimated_fare,
     distance_km: message.distance_km,
     duration_seconds: message.duration_seconds,
-    assignment_expires_at: message.assignment_expires_at,
-    passenger: {
-      id: message.passenger.id,
-      name: message.passenger.name,
-      rating: message.passenger.rating,
-      ...(message.passenger.photoUrl && { photoUrl: message.passenger.photoUrl }),
-    },
+    assignment_expires_at: expires,
+    ...(message.passenger
+      ? {
+          passenger: {
+            id: message.passenger.id,
+            name: message.passenger.name,
+            rating: message.passenger.rating,
+            ...(message.passenger.photoUrl && { photoUrl: message.passenger.photoUrl }),
+          },
+        }
+      : {}),
+  };
+}
+
+function readLatLngPoint(raw: unknown): { lat: number; lng: number } | null {
+  if (!isRecord(raw)) return null;
+  const lat = readNumber(raw.lat);
+  const lng = readNumber(raw.lng ?? raw.lon);
+  if (lat === undefined || lng === undefined) return null;
+  return { lat, lng };
+}
+
+/**
+ * Normalizes server `ride_offer` payloads (nested `data`, alternate keys, casing).
+ */
+export function parseDriverRideOfferPayload(raw: unknown): DriverRideOfferMessage | null {
+  if (!isRecord(raw)) return null;
+  const typeRaw = readString(raw.type);
+  if (!typeRaw || typeRaw.toLowerCase() !== 'ride_offer') return null;
+
+  const root = isRecord(raw.data) ? raw.data : raw;
+
+  const trip_id = readString(root.trip_id) ?? readString(root.tripId);
+  if (!trip_id) return null;
+
+  const origin = readLatLngPoint(root.origin);
+  const destination = readLatLngPoint(root.destination);
+  if (!origin || !destination) return null;
+
+  const pRaw = root.passenger;
+  const passenger = isRecord(pRaw)
+    ? {
+        id: readString(pRaw.id) ?? '',
+        name: readString(pRaw.name) ?? '',
+        rating: readNumber(pRaw.rating) ?? 0,
+        ...(readString(pRaw.photoUrl) ? { photoUrl: readString(pRaw.photoUrl) } : {}),
+      }
+    : { id: '', name: '', rating: 0 };
+
+  const estimated_fare =
+    readNumber(root.estimated_fare) ?? readNumber(root.estimatedPrice) ?? readNumber(root.estimatedFare) ?? 0;
+  const distance_km = readNumber(root.distance_km) ?? readNumber(root.distanceKm);
+  const duration_seconds =
+    readNumber(root.duration_seconds) ?? readNumber(root.durationSeconds);
+  const eta_to_pickup_minutes =
+    readNumber(root.eta_to_pickup_minutes) ?? readNumber(root.etaToPickupMinutes) ?? 0;
+  const assignment_expires_at =
+    readString(root.assignment_expires_at) ?? readString(root.assignmentExpiresAt);
+
+  const payment_method: string | null =
+    root.payment_method === null
+      ? null
+      : readString(root.payment_method) ?? readString(root.paymentMethod) ?? null;
+  const payment_brand: string | null =
+    root.payment_brand === null ? null : readString(root.payment_brand) ?? readString(root.paymentBrand) ?? null;
+
+  return {
+    type: 'ride_offer',
+    trip_id,
+    origin,
+    destination,
+    estimated_fare,
+    distance_km: distance_km ?? 0,
+    duration_seconds: duration_seconds ?? 0,
+    eta_to_pickup_minutes,
+    assignment_expires_at: assignment_expires_at ?? new Date(Date.now() + 120_000).toISOString(),
+    passenger,
+    payment_method,
+    payment_brand,
   };
 }
