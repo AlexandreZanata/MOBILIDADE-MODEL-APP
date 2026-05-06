@@ -294,6 +294,7 @@ export function useHome({ navigation }: UseHomeParams) {
     rideCategories,
     selectedCategoryId,
     isLoadingCategories,
+    selectedCategoryDuration: rideCategories.find((c) => c.id === selectedCategoryId)?.durationSeconds ?? null,
     setSearchQuery: (text: string) => {
       setSearchQuery(text);
       if (text) setShowHelperText(false);

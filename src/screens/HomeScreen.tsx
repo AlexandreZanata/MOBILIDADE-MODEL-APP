@@ -66,6 +66,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         isLoadingCategories={vm.isLoadingCategories}
         rideCategories={vm.rideCategories}
         selectedCategoryId={vm.selectedCategoryId}
+        selectedCategoryDuration={vm.selectedCategoryDuration}
         onToggleMinimized={vm.toggleMinimized}
         onSelectCategory={vm.onSelectCategory}
         onRequestTrip={vm.requestTrip}

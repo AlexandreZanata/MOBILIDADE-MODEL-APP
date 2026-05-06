@@ -26,6 +26,7 @@ interface Props {
   isLoadingCategories: boolean;
   rideCategories: TripCategoryOption[];
   selectedCategoryId: string | null;
+  selectedCategoryDuration: number | null;
   onToggleMinimized: () => void;
   onSelectCategory: (id: string) => void;
   onRequestTrip: () => void;
@@ -70,31 +71,30 @@ const RideTypeCard = memo(({ item, isSelected, onPress }: RideTypeCardProps) => 
 
   const styles = StyleSheet.create({
     card: {
-      borderWidth: isSelected ? 1.5 : 0.5,
+      borderWidth: isSelected ? 1.5 : 1,
       borderColor: isSelected ? colors.primary : colors.border,
       borderRadius: 14,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.sm + 2,
-      alignItems: 'center',
-      minWidth: 88,
-      backgroundColor: isSelected ? hexToRgba(colors.primary, 0.06) : colors.card,
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.md,
+      alignItems: 'flex-start',
+      minWidth: 96,
+      backgroundColor: isSelected ? hexToRgba(colors.primary, 0.07) : colors.backgroundSecondary,
       marginRight: spacing.sm,
-    },
-    icon: {
-      marginBottom: spacing.xs,
+      gap: 2,
     },
     name: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: isSelected ? colors.primary : colors.textSecondary,
-      fontFamily: 'Poppins-SemiBold',
-      textAlign: 'center',
+      fontSize: 12,
+      fontWeight: '700',
+      color: isSelected ? colors.primary : colors.textPrimary,
+      fontFamily: 'Poppins-Bold',
+      letterSpacing: 0.1,
     },
     price: {
-      fontSize: 11,
-      color: isSelected ? colors.primary : colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-      marginTop: 1,
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#F97316',
+      fontFamily: 'Poppins-Bold',
+      marginTop: 2,
     },
     eta: {
       fontSize: 10,
@@ -113,16 +113,13 @@ const RideTypeCard = memo(({ item, isSelected, onPress }: RideTypeCardProps) => 
       accessibilityState={{ selected: isSelected }}
       accessibilityLabel={`${item.name}, ${formatPrice(item.finalFare)}`}
     >
-      <Ionicons
-        style={styles.icon}
-        name="car-outline"
-        size={20}
-        color={isSelected ? colors.primary : colors.textSecondary}
-      />
+      {/* Category name — top hierarchy */}
       <Text style={styles.name} numberOfLines={1}>
         {item.name}
       </Text>
+      {/* Price — prominent, primary color when selected */}
       <Text style={styles.price}>{formatPrice(item.finalFare)}</Text>
+      {/* ETA — subtle, lowest hierarchy */}
       <Text style={styles.eta}>{formatDuration(item.durationSeconds)}</Text>
     </TouchableOpacity>
   );
@@ -138,6 +135,7 @@ export const HomeBottomCard = memo(function HomeBottomCard({
   isLoadingCategories,
   rideCategories,
   selectedCategoryId,
+  selectedCategoryDuration,
   onToggleMinimized,
   onSelectCategory,
   onRequestTrip,
@@ -161,9 +159,15 @@ export const HomeBottomCard = memo(function HomeBottomCard({
   const styles = StyleSheet.create({
     card: {
       position: 'absolute',
-      bottom: 8,
-      left: spacing.md,
-      right: spacing.md,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      borderRadius: 0,
+      // shadow only on top edge
+      shadowOffset: { width: 0, height: -3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      elevation: 12,
     },
     handle: {
       width: 36,
@@ -173,6 +177,12 @@ export const HomeBottomCard = memo(function HomeBottomCard({
       alignSelf: 'center',
       marginBottom: spacing.sm,
     },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.sm,
+    },
     sectionLabel: {
       fontSize: 10,
       fontWeight: '600',
@@ -180,7 +190,6 @@ export const HomeBottomCard = memo(function HomeBottomCard({
       fontFamily: 'Poppins-SemiBold',
       textTransform: 'uppercase',
       letterSpacing: 0.8,
-      marginBottom: spacing.sm,
     },
     destRow: {
       flexDirection: 'row',
@@ -228,7 +237,7 @@ export const HomeBottomCard = memo(function HomeBottomCard({
     },
     carouselContainer: {
       marginBottom: spacing.sm,
-      minHeight: 90,
+      minHeight: 80,
       justifyContent: 'center',
     },
     loadingRow: {
@@ -247,27 +256,6 @@ export const HomeBottomCard = memo(function HomeBottomCard({
       color: colors.textSecondary,
       fontFamily: 'Poppins-Regular',
       paddingVertical: spacing.sm,
-    },
-    ctaRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-    },
-    couponBtn: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      borderWidth: 0.5,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: spacing.sm,
     },
   });
 
@@ -315,8 +303,14 @@ export const HomeBottomCard = memo(function HomeBottomCard({
                   </Text>
                 </View>
                 <View style={styles.etaBlock}>
-                  <Text style={styles.etaVal}>30</Text>
-                  <Text style={styles.etaUnit}>{th('etaUnit')}</Text>
+                  {selectedCategoryDuration != null ? (
+                    <>
+                      <Text style={styles.etaVal}>
+                        {Math.round(selectedCategoryDuration / 60)}
+                      </Text>
+                      <Text style={styles.etaUnit}>{th('etaUnit')}</Text>
+                    </>
+                  ) : null}
                 </View>
               </View>
 
@@ -347,24 +341,14 @@ export const HomeBottomCard = memo(function HomeBottomCard({
             <Text style={styles.emptyText}>{th('selectDestination')}</Text>
           )}
 
-          {/* CTA row */}
-          <View style={styles.ctaRow}>
-            <TouchableOpacity
-              style={styles.couponBtn}
-              accessibilityRole="button"
-              accessibilityLabel={th('couponButton')}
-            >
-              <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-            <Button
-              title={th('requestTripButton')}
-              onPress={onRequestTrip}
-              variant="primary"
-              fullWidth
-              disabled={showCarousel && (isLoadingCategories || !selectedCategoryId)}
-              style={{ flex: 1 }}
-            />
-          </View>
+          {/* CTA — full width, no coupon button */}
+          <Button
+            title={th('requestTripButton')}
+            onPress={onRequestTrip}
+            variant="primary"
+            fullWidth
+            disabled={showCarousel && (isLoadingCategories || !selectedCategoryId)}
+          />
         </>
       )}
     </Card>
