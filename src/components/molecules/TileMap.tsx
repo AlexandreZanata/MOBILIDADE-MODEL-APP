@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from 'react';
+import React, { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Animated, Image, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +30,32 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
     driverLocation: props.driverLocation,
     verticalCenterRatio: defaults.verticalCenterRatio,
     onMapMove: props.onMapMove,
+    onZoom: props.onZoom,
     ref,
   });
   const styles = createTileMapStyles({ colors, mapWidth, mapHeight });
+
+  /**
+   * Fade-in animation: the skeleton overlay fades out once the first batch of
+   * tiles has had a chance to render (300 ms is enough for the initial paint).
+   */
+  const skeletonOpacity = useRef(new Animated.Value(1)).current;
+  const skeletonVisible = useRef(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(skeletonOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        skeletonVisible.current = false;
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+    // Only run once on mount — intentional empty deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const tileRows = useMemo(() => {
     return Array.from({ length: viewport.tilesPerCol }, (_, rowIndex) => {
@@ -234,6 +257,17 @@ export const TileMap = forwardRef<TileMapRef, TileMapProps>((props, ref) => {
           <Text style={styles.locatingText}>Buscando sua localização</Text>
         </View>
       )}
+
+      {/* Skeleton fade-in overlay — prevents the black flash while tiles load */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.skeletonOverlay,
+          { opacity: skeletonOpacity },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.primary} />
+      </Animated.View>
     </View>
   );
 });

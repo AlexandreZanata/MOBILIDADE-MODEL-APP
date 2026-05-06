@@ -4,6 +4,11 @@ import { DEFAULT_ZOOM, TILE_SIZE } from '@/components/molecules/tileMap/constant
 import { deg2num, getPixelOffset } from '@/components/molecules/tileMap/helpers';
 import { TileMapProps, TileMapRef } from '@/components/molecules/tileMap/types';
 
+/** Discrete zoom levels available via pinch gesture. */
+const PINCH_ZOOM_LEVELS = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
+/** Minimum pinch scale delta before a zoom step is triggered. */
+const PINCH_SCALE_THRESHOLD = 0.25;
+
 interface UseTileMapControllerParams {
   centerLat: number;
   centerLon: number;
@@ -12,6 +17,7 @@ interface UseTileMapControllerParams {
   driverLocation?: { lat: number; lon: number };
   verticalCenterRatio: number;
   onMapMove?: () => void;
+  onZoom?: (zoom: number) => void;
   ref: ForwardedRef<TileMapRef>;
 }
 
@@ -23,6 +29,7 @@ export function useTileMapController({
   driverLocation,
   verticalCenterRatio,
   onMapMove,
+  onZoom,
   ref,
 }: UseTileMapControllerParams) {
   const mapZoom = zoom || DEFAULT_ZOOM;
@@ -34,6 +41,17 @@ export function useTileMapController({
   const userMovedMap = useRef(false);
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastPan = useRef({ x: 0, y: 0 });
+
+  // ─── Pinch-to-zoom state ────────────────────────────────────────────────────
+  /** Distance between the two touch points at the start of a pinch gesture. */
+  const initialPinchDistance = useRef<number | null>(null);
+  /** Zoom level at the moment the pinch started. */
+  const pinchStartZoom = useRef<number>(mapZoom);
+  /** Stable ref so panResponder closure always sees the latest zoom. */
+  const mapZoomRef = useRef<number>(mapZoom);
+  useEffect(() => {
+    mapZoomRef.current = mapZoom;
+  }, [mapZoom]);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
@@ -66,20 +84,73 @@ export function useTileMapController({
     },
   }));
 
+  /**
+   * Returns the Euclidean distance between two touch points.
+   */
+  function getTouchDistance(touches: { pageX: number; pageY: number }[]): number {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Snaps a raw zoom value to the nearest discrete level in PINCH_ZOOM_LEVELS.
+   */
+  function snapToZoomLevel(raw: number): number {
+    return PINCH_ZOOM_LEVELS.reduce((prev, curr) =>
+      Math.abs(curr - raw) < Math.abs(prev - raw) ? curr : prev
+    );
+  }
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        pan.setOffset(lastPan.current);
-        pan.setValue({ x: 0, y: 0 });
+
+      onPanResponderGrant: (evt) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          // Begin pinch — record initial distance and current zoom
+          initialPinchDistance.current = getTouchDistance(
+            Array.from(evt.nativeEvent.touches) as { pageX: number; pageY: number }[]
+          );
+          pinchStartZoom.current = mapZoomRef.current;
+        } else {
+          pan.setOffset(lastPan.current);
+          pan.setValue({ x: 0, y: 0 });
+        }
       },
-      onPanResponderMove: (_, gesture) => {
-        userMovedMap.current = true;
-        onMapMove?.();
-        pan.setValue({ x: gesture.dx, y: gesture.dy });
+
+      onPanResponderMove: (evt, gesture) => {
+        const touches = Array.from(evt.nativeEvent.touches) as { pageX: number; pageY: number }[];
+
+        if (touches.length === 2 && initialPinchDistance.current !== null) {
+          // ── Pinch gesture ──────────────────────────────────────────────────
+          const currentDistance = getTouchDistance(touches);
+          const scale = currentDistance / initialPinchDistance.current;
+          const rawZoom = pinchStartZoom.current + Math.log2(scale);
+          const clamped = Math.max(
+            PINCH_ZOOM_LEVELS[0],
+            Math.min(PINCH_ZOOM_LEVELS[PINCH_ZOOM_LEVELS.length - 1], rawZoom)
+          );
+          const snapped = snapToZoomLevel(clamped);
+
+          // Only fire when the snapped level actually changes
+          if (Math.abs(snapped - mapZoomRef.current) >= PINCH_SCALE_THRESHOLD) {
+            onZoom?.(snapped);
+          }
+        } else {
+          // ── Pan gesture ────────────────────────────────────────────────────
+          userMovedMap.current = true;
+          onMapMove?.();
+          pan.setValue({ x: gesture.dx, y: gesture.dy });
+        }
       },
-      onPanResponderRelease: (_, gesture) => {
+
+      onPanResponderRelease: (evt, gesture) => {
+        if (evt.nativeEvent.touches.length === 0) {
+          initialPinchDistance.current = null;
+        }
+
         pan.flattenOffset();
         const finalPan = {
           x: lastPan.current.x + gesture.dx,

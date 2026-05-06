@@ -24,6 +24,8 @@ export interface TileMapProps {
   passengerLocation?: { lat: number; lon: number };
   destinationLocation?: { lat: number; lon: number };
   onMapMove?: () => void;
+  /** Called when the user performs a pinch-to-zoom gesture with the new zoom level. */
+  onZoom?: (zoom: number) => void;
   bottomContainerHeight?: number;
   topSpaceHeight?: number;
   isLocating?: boolean;

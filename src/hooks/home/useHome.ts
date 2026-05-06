@@ -15,7 +15,6 @@ interface UseHomeParams {
 }
 
 const SORRISO_LOCATION: HomeLocation = { lat: -12.5458, lon: -55.7061 };
-const ZOOM_LEVELS = [12, 14, 16, 18, 20];
 const CACHE_KEYS = { USER_LOCATION: '@vamu:user_location', LOCATION_TIMESTAMP: '@vamu:location_timestamp' };
 
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -229,8 +228,7 @@ export function useHome({ navigation }: UseHomeParams) {
     requestTrip,
     onRecenter: requestLocationPermission,
     onMapMove: () => setHasUserMovedMap(true),
-    zoomIn: () => setMapZoom((z) => ZOOM_LEVELS.find((level) => level > z) || ZOOM_LEVELS[ZOOM_LEVELS.length - 1]),
-    zoomOut: () => setMapZoom((z) => [...ZOOM_LEVELS].reverse().find((level) => level < z) || ZOOM_LEVELS[0]),
+    setMapZoom,
     setCardHeight,
     setSearchBarHeight,
     toggleMinimized: () => setIsMinimized((state) => !state),

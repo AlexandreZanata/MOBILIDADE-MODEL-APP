@@ -57,8 +57,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         destination={vm.selectedDestination}
         onMapMove={vm.onMapMove}
         onRecenter={vm.onRecenter}
-        onZoomIn={vm.zoomIn}
-        onZoomOut={vm.zoomOut}
+        onZoom={vm.setMapZoom}
         onNotifications={vm.goToNotifications}
       />
       <HomeBottomCard

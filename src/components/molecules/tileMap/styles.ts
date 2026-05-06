@@ -107,5 +107,20 @@ export function createTileMapStyles({ colors, mapWidth, mapHeight }: TileMapStyl
       fontWeight: '500',
       marginTop: 12,
     },
+    /**
+     * Covers the map on first mount and fades out once tiles have rendered,
+     * preventing the black-screen flash on Android and slow-connection devices.
+     */
+    skeletonOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: colors.background,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 999,
+    },
   });
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authFacade } from '@/services/facades/AuthFacade';
 import { httpClient } from '@/services/http/httpClient';
@@ -22,6 +22,19 @@ export function useAuthProviderValue(): AuthContextValue {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+
+  /**
+   * Stable ref for the current user's roles so that callbacks that need roles
+   * do NOT re-create (and therefore do NOT re-trigger effects) every time the
+   * user object changes.
+   */
+  const userRolesRef = useRef<UserRole[]>([]);
+  useEffect(() => {
+    userRolesRef.current = user?.roles ?? [];
+  }, [user]);
+
+  /** Guard that prevents hydrate() from running more than once concurrently. */
+  const hydrateRunningRef = useRef(false);
 
   const clearAuth = useCallback(async () => {
     await removeAllAuthStorage();
@@ -48,6 +61,11 @@ export function useAuthProviderValue(): AuthContextValue {
     []
   );
 
+  /**
+   * refreshAuth no longer depends on `user?.roles` directly — it reads the
+   * stable ref instead, which breaks the dependency cycle:
+   *   hydrate → refreshAuth → user?.roles → hydrate (loop)
+   */
   const refreshAuth = useCallback(async () => {
     const refreshResult = await authFacade.refresh();
     const parsedTokens = refreshTokensSchema.safeParse(refreshResult.data);
@@ -61,10 +79,17 @@ export function useAuthProviderValue(): AuthContextValue {
     setIsAuthenticated(true);
 
     if (await isUserCacheValid(USER_CACHE_TTL_MS)) return;
-    await refreshUserFromApi(user?.roles ?? []);
-  }, [clearAuth, persistTokens, refreshUserFromApi, user?.roles]);
+    await refreshUserFromApi(userRolesRef.current);
+  }, [clearAuth, persistTokens, refreshUserFromApi]);
 
+  /**
+   * hydrate() now has a stable dependency set and is protected by a running
+   * guard so it can never execute concurrently or re-trigger itself.
+   */
   const hydrate = useCallback(async () => {
+    if (hydrateRunningRef.current) return;
+    hydrateRunningRef.current = true;
+
     try {
       setIsLoading(true);
 
@@ -97,8 +122,13 @@ export function useAuthProviderValue(): AuthContextValue {
       await clearAuth();
     } finally {
       setIsLoading(false);
+      hydrateRunningRef.current = false;
     }
-  }, [clearAuth, refreshAuth, refreshUserFromApi]);
+    // Intentionally omitting refreshAuth from deps — it is stable because it
+    // no longer closes over `user?.roles`. clearAuth and refreshUserFromApi
+    // are both stable (no changing deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearAuth, refreshUserFromApi]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<LoginResult> => {
