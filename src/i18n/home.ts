@@ -8,7 +8,7 @@ const homeMessages = {
   selectDestination: 'Selecione um destino',
   estimatedTimeLabel: 'Tempo estimado',
   estimatedTimeValue: '30 min',
-  requestTripButton: 'Solicitar Corrida',
+  requestTripButton: 'Solicitar corrida',
   permissionDeniedTitle: 'Permissao negada',
   permissionDeniedDescription: 'Precisamos da sua localizacao para melhorar a experiencia.',
   waitLocationTitle: 'Atencao',
@@ -17,6 +17,13 @@ const homeMessages = {
   chooseDestinationDescription: 'Selecione um destino primeiro...',
   resolveLocationTitle: 'Erro ao obter localização',
   resolveLocationDescription: 'Não foi possível obter as coordenadas deste local. Tente novamente ou escolha outro destino.',
+  // Ride-type carousel
+  rideTypesSectionLabel: 'nova corrida',
+  loadingCategories: 'Calculando precos...',
+  noCategoriesAvailable: 'Nenhuma categoria disponivel.',
+  selectCategoryFirst: 'Selecione uma categoria',
+  etaUnit: 'min',
+  couponButton: 'Cupom',
 } as const;
 
 type HomeMessageKey = keyof typeof homeMessages;

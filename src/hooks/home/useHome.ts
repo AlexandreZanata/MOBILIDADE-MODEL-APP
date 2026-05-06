@@ -7,7 +7,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 import { useTrip } from '@/context/TripContext';
 import { HomeDestination, HomeLocation } from '@/models/home/types';
+import { TripCategoryOption } from '@/models/tripPrice/types';
 import { homeFacade } from '@/services/home/homeFacade';
+import { tripPriceFacade } from '@/services/tripPrice/tripPriceFacade';
 import { th } from '@/i18n/home';
 
 interface UseHomeParams {
@@ -54,6 +56,13 @@ export function useHome({ navigation }: UseHomeParams) {
   const [searchBarHeight, setSearchBarHeight] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
   const [hasUserMovedMap, setHasUserMovedMap] = useState(false);
+
+  // Inline ride-type carousel state
+  const [rideCategories, setRideCategories] = useState<TripCategoryOption[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [estimateId, setEstimateId] = useState<string | null>(null);
+  const [estimateTimestamp, setEstimateTimestamp] = useState<number | null>(null);
 
   const saveLocationToCache = useCallback(async (location: HomeLocation) => {
     await AsyncStorage.multiSet([
@@ -173,6 +182,27 @@ export function useHome({ navigation }: UseHomeParams) {
     }, [isCheckingActiveRide, requestLocationPermission, userLocation])
   );
 
+  const loadCategoriesForDestination = useCallback(
+    async (dest: HomeDestination, origin: HomeLocation) => {
+      setIsLoadingCategories(true);
+      setRideCategories([]);
+      setSelectedCategoryId(null);
+      const result = await tripPriceFacade.getCategoriesWithEstimate(
+        { lat: origin.lat, lng: origin.lon },
+        { lat: dest.lat, lng: dest.lon },
+      );
+      setIsLoadingCategories(false);
+      if (!result.success || !result.data) return;
+      setEstimateId(result.data.estimateId);
+      setEstimateTimestamp(Date.now());
+      setRideCategories(result.data.categories);
+      if (result.data.categories.length > 0) {
+        setSelectedCategoryId(result.data.categories[0].id);
+      }
+    },
+    [],
+  );
+
   const onSelectLocation = useCallback(async (result: HomeDestination) => {
     Keyboard.dismiss();
 
@@ -200,7 +230,13 @@ export function useHome({ navigation }: UseHomeParams) {
 
     setSelectedDestination(hydrated);
     setIsMinimized(false);
-  }, []);
+
+    // Load ride categories inline (no navigation to TripPriceScreen)
+    const currentLocation = userLocation;
+    if (currentLocation) {
+      void loadCategoriesForDestination(hydrated, currentLocation);
+    }
+  }, [loadCategoriesForDestination, userLocation]);
 
   const requestTrip = useCallback(() => {
     if (!selectedDestination) {
@@ -220,8 +256,20 @@ export function useHome({ navigation }: UseHomeParams) {
       Alert.alert(th('chooseDestinationTitle'), th('chooseDestinationDescription'));
       return;
     }
-    navigation.navigate('TripPrice', { origin, destination });
-  }, [navigation, selectedDestination, userLocation]);
+    if (!selectedCategoryId) {
+      Alert.alert(th('chooseDestinationTitle'), th('selectCategoryFirst'));
+      return;
+    }
+    const selectedCategory = rideCategories.find((c) => c.id === selectedCategoryId);
+    navigation.navigate('PaymentMethod', {
+      origin,
+      destination,
+      tripCategoryId: selectedCategoryId,
+      estimatedFare: selectedCategory?.finalFare ?? null,
+      estimateId,
+      estimateTimestamp,
+    });
+  }, [estimateId, estimateTimestamp, navigation, rideCategories, selectedCategoryId, selectedDestination, userLocation]);
 
   const vm = useMemo(() => ({
     isDriver,
@@ -242,6 +290,10 @@ export function useHome({ navigation }: UseHomeParams) {
     cardHeight,
     searchBarHeight,
     hasUserMovedMap,
+    // Ride-type carousel
+    rideCategories,
+    selectedCategoryId,
+    isLoadingCategories,
     setSearchQuery: (text: string) => {
       setSearchQuery(text);
       if (text) setShowHelperText(false);
@@ -255,6 +307,7 @@ export function useHome({ navigation }: UseHomeParams) {
     setShowResults,
     onSelectLocation,
     requestTrip,
+    onSelectCategory: setSelectedCategoryId,
     onRecenter: requestLocationPermission,
     onMapMove: () => setHasUserMovedMap(true),
     setMapZoom,
@@ -266,9 +319,11 @@ export function useHome({ navigation }: UseHomeParams) {
     },
     goToNotifications: () => navigation.navigate('Notifications'),
   }), [
-    activeTrip, hasUserMovedMap, isCheckingActiveRide, isDriver, isLocating, isMinimized, isSearching,
-    isTripLoading, mapCenter, mapZoom, navigation, onSelectLocation, requestLocationPermission, requestTrip,
-    searchBarHeight, searchQuery, searchResults, selectedDestination, showHelperText, showResults, userLocation, cardHeight,
+    activeTrip, hasUserMovedMap, isCheckingActiveRide, isDriver, isLoadingCategories, isLocating,
+    isMinimized, isSearching, isTripLoading, mapCenter, mapZoom, navigation, onSelectLocation,
+    requestLocationPermission, requestTrip, rideCategories, searchBarHeight, searchQuery,
+    searchResults, selectedCategoryId, selectedDestination, showHelperText, showResults,
+    userLocation, cardHeight,
   ]);
 
   return vm;

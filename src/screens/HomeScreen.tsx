@@ -63,7 +63,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <HomeBottomCard
         destination={vm.selectedDestination}
         isMinimized={vm.isMinimized}
+        isLoadingCategories={vm.isLoadingCategories}
+        rideCategories={vm.rideCategories}
+        selectedCategoryId={vm.selectedCategoryId}
         onToggleMinimized={vm.toggleMinimized}
+        onSelectCategory={vm.onSelectCategory}
         onRequestTrip={vm.requestTrip}
         onLayoutHeight={vm.setCardHeight}
       />

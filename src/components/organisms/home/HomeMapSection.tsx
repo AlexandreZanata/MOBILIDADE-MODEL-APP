@@ -86,9 +86,9 @@ export const HomeMapSection = memo(function HomeMapSection(props: Props) {
       >
         <Ionicons name="location-outline" size={24} color="#34C759" />
       </TouchableOpacity>
-      {/* Notifications FAB */}
+      {/* Notifications FAB — alinhado ao topo da área do mapa */}
       <TouchableOpacity
-        style={[styles.fab, { top: props.searchBarHeight + 12 }]}
+        style={[styles.fab, { top: 8 }]}
         onPress={props.onNotifications}
         accessibilityRole="button"
         accessibilityLabel="Notificações"

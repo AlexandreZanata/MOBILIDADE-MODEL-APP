@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ImagePickerResponse, launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/hooks/useAuth';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { isDriver } from '@/models/User';
 import { API_BASE_URL } from '@/services/api';
 import { getProfileImageUrl } from '@/services/profileImageCache';
-import { requestCameraPermission, requestMediaLibraryPermission, openAppSettings } from '@/services/permissionsService';
+import { openAppSettings } from '@/services/permissionsService';
 import { profileService } from '@/services/profile/profileService';
 import { tp, tProfileDriverStatus, tProfileUserType } from '@/i18n/profile';
 import { DriverStatus, ProfileMenuItem, ProfileRating, ProfileUserType } from '@/models/profile/types';
@@ -151,16 +151,16 @@ export function useProfileScreen(navigation: NavigationShape) {
     [ensureToken, refreshProfile]
   );
 
-  const processPickerResponse = useCallback(
-    async (response: ImagePickerResponse, onFile: (fileUri: string) => Promise<void>) => {
-      const fileUri = response.assets?.[0]?.uri;
-      if (response.didCancel || !fileUri) return;
-      if (response.errorCode) {
-        Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
-        return;
-      }
+  const processPickerResult = useCallback(
+    async (
+      result: ImagePicker.ImagePickerResult,
+      onFile: (fileUri: string) => Promise<void>
+    ) => {
+      if (result.canceled) return;
+      const uri = result.assets?.[0]?.uri;
+      if (!uri) return;
       try {
-        await onFile(fileUri);
+        await onFile(uri);
       } catch {
         Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
       }
@@ -174,20 +174,22 @@ export function useProfileScreen(navigation: NavigationShape) {
         {
           text: tp('gallery'),
           onPress: () => {
-            // Run async work outside the Alert callback to avoid Android race condition
             void (async () => {
-              const granted = await requestMediaLibraryPermission();
-              if (!granted) {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
                 Alert.alert(tp('permissionTitle'), tp('mediaPermissionDescription'), [
                   { text: tp('cancel'), style: 'cancel' },
                   { text: tp('openSettings'), onPress: () => openAppSettings() },
                 ]);
                 return;
               }
-              launchImageLibrary(
-                { mediaType: 'photo', selectionLimit: 1, quality: 0.8 },
-                (response) => void processPickerResponse(response, onFile)
-              );
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: 'images',
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              await processPickerResult(result, onFile);
             })();
           },
         },
@@ -195,25 +197,28 @@ export function useProfileScreen(navigation: NavigationShape) {
           text: tp('camera'),
           onPress: () => {
             void (async () => {
-              const granted = await requestCameraPermission();
-              if (!granted) {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
                 Alert.alert(tp('permissionTitle'), tp('cameraPermissionDescription'), [
                   { text: tp('cancel'), style: 'cancel' },
                   { text: tp('openSettings'), onPress: () => openAppSettings() },
                 ]);
                 return;
               }
-              launchCamera(
-                { mediaType: 'photo', quality: 0.8, saveToPhotos: false },
-                (response) => void processPickerResponse(response, onFile)
-              );
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: 'images',
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              await processPickerResult(result, onFile);
             })();
           },
         },
         { text: tp('cancel'), style: 'cancel' },
       ]);
     },
-    [processPickerResponse]
+    [processPickerResult]
   );
 
   const handlePhotoUpload = useCallback(() => {
@@ -234,7 +239,6 @@ export function useProfileScreen(navigation: NavigationShape) {
   }, [ensureToken, refreshProfile, requestUploadSource, userTypeForUpload]);
 
   const handleUploadCnh = useCallback(() => requestUploadSource(uploadCnh), [requestUploadSource, uploadCnh]);
-
   const onMenuAction = useCallback((action: ProfileMenuItem['action']) => {
     if (action === 'history') {
       navigation.navigate('History');
