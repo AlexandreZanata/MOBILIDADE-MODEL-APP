@@ -137,14 +137,18 @@ export const PaymentSheet = memo(function PaymentSheet({
 }: PaymentSheetProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { methods, brands, selectedMethod, isLoading, isLoadingBrands, hasError } =
+  const { methods, brands, isLoading, isLoadingBrands, hasError } =
     usePaymentSheet();
+
+  // Derive the currently-selected method from the prop (controlled by parent),
+  // not from the hook's internal state — they can diverge when the user taps
+  // a method and the modal closes before the hook state updates.
+  const currentMethod = methods.find((m) => m.id === selectedId) ?? null;
+  const showBrands = !isLoading && currentMethod?.requiresCardBrand === true;
 
   const sheetBg = isDark
     ? { backgroundColor: colors.backgroundSecondary, borderTopWidth: 0.5, borderTopColor: colors.border }
     : { backgroundColor: colors.card, ...shadows.large };
-
-  const showBrands = !isLoading && selectedMethod?.requiresCardBrand === true;
 
   return (
     <Modal
