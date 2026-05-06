@@ -221,7 +221,7 @@ const DestinationContent = memo(function DestinationContent({
       {/* Destination row */}
       <View style={styles.destRow}>
         <View style={[styles.destIconBox, { backgroundColor: colors.accentSoft }]}>
-          <Ionicons name="location" size={18} color={colors.accent} />
+          <Ionicons name="location" size={16} color={colors.accent} />
         </View>
         <View style={styles.destInfo}>
           <Text style={[styles.destName, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -337,9 +337,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   destIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: borders.radiusLarge,
+    width: 32,
+    height: 32,
+    borderRadius: borders.radiusSmall,
     alignItems: 'center',
     justifyContent: 'center',
   },

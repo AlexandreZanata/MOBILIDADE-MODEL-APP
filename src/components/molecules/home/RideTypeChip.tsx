@@ -43,7 +43,7 @@ export const RideTypeChip = memo(function RideTypeChip({
       >
         {item.name}
       </Text>
-      <Text style={[styles.price, { color: colors.textSecondary }]}>
+      <Text style={styles.price}>
         {formatPrice(item.finalFare)}
       </Text>
     </TouchableOpacity>
@@ -62,10 +62,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   name: {
-    ...typography.caption,
+    fontSize: 13,
     fontWeight: '500',
   },
   price: {
-    ...typography.micro,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F97316',
   },
 });
