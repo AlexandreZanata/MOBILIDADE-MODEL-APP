@@ -1,3 +1,8 @@
+/**
+ * @file types.ts
+ * @description Domain types for the WaitingForDriver feature.
+ */
+
 export interface WaitingDriverVehicle {
   brand?: string;
   model?: string;
@@ -17,7 +22,9 @@ export interface WaitingTripSnapshot {
   rideId: string;
   status: string;
   estimatedFare: number | null;
+  /** Origin coordinates (used for map centering and geocoding). */
   origin: { lat: number; lon: number } | null;
+  /** Destination coordinates (used for route calculation and geocoding). */
   destination: { lat: number; lng: number } | null;
   driver: WaitingDriver | null;
 }

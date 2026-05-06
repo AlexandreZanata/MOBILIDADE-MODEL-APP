@@ -5,7 +5,7 @@
  * Responsibilities:
  *  - Receives navigation params and delegates all logic to the hook
  *  - Renders the pure-presentational organism
- *  - Bottom navigation is intentionally hidden on this screen (one task: wait or cancel)
+ *  - Bottom navigation is intentionally hidden on this screen
  */
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
@@ -56,6 +56,9 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
       insetsBottom={state.insets.bottom}
       rideId={state.rideId}
       userLocation={state.userLocation}
+      tripOrigin={state.tripOrigin}
+      tripDestination={state.tripDestination}
+      routePoints={state.routePoints}
       driver={state.driver}
       tripStatus={state.tripStatus}
       estimatedFare={state.estimatedFare}

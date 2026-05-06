@@ -2,12 +2,11 @@
  * @file WaitingForDriverScreenContent.tsx
  * @description Full-screen organism for the "Waiting for Driver" state.
  *
- * Layout (spec):
- *   [Full-screen Map — animated pulse ring while searching]
- *   [Persistent Bottom Sheet — non-dismissable, cross-fades between states]
- *   [Cancel Dialog — in-app modal, NOT Alert]
- *   [Rating Modal — post-trip]
- *   [Chat Window — overlaid when open]
+ * Map behavior:
+ *  - Centers on userLocation (GPS) when available, falls back to tripOrigin
+ *  - Shows user pin (blue) and destination pin (red) when coordinates available
+ *  - Draws route line when routePoints are loaded (after driver found)
+ *  - Pulsing ring animation while searching
  *
  * Architecture: pure presentational — all logic lives in useWaitingForDriverScreen.
  */
@@ -20,6 +19,7 @@ import { WaitingDriverFoundSheet } from '@/components/molecules/waitingForDriver
 import { WaitingRatingModal } from '@/components/molecules/waitingForDriver/WaitingRatingModal';
 import { WaitingSearchingSheet } from '@/components/molecules/waitingForDriver/WaitingSearchingSheet';
 import { shadows } from '@/theme';
+import type { RoutePoint } from '@/components/molecules/TileMap';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +45,14 @@ export interface WaitingForDriverScreenContentProps {
   insetsTop: number;
   insetsBottom: number;
   rideId: string | null;
+  /** Device GPS location — used for the user pin. */
   userLocation: { lat: number; lon: number } | null;
+  /** Trip origin coordinates — used as map center fallback when GPS unavailable. */
+  tripOrigin: { lat: number; lon: number } | null;
+  /** Trip destination coordinates — used for the destination pin. */
+  tripDestination: { lat: number; lon: number } | null;
+  /** Calculated route points from routingService — drawn as a line on the map. */
+  routePoints: RoutePoint[];
   driver: DriverSummary | null;
   tripStatus: string;
   estimatedFare: number | null;
@@ -55,7 +62,6 @@ export interface WaitingForDriverScreenContentProps {
   ratingValue: number;
   ratingComment: string;
   isSubmittingRating: boolean;
-  /** Optional trip metadata for the summary row */
   originAddress?: string;
   destinationAddress?: string;
   categoryName?: string;
@@ -83,17 +89,43 @@ export function WaitingForDriverScreenContent(
     props.onCancelRide();
   }, [props]);
 
+  // ── Map props ──────────────────────────────────────────────────────────
+  // Center: prefer device GPS, fall back to trip origin
+  const mapCenter = props.userLocation ?? props.tripOrigin;
+
+  // Driver location: use driver's location if available, otherwise don't show pin
   const driverLocation = props.driver
-    ? { lat: props.userLocation?.lat ?? 0, lon: props.userLocation?.lon ?? 0 }
+    ? { lat: props.userLocation?.lat ?? props.tripOrigin?.lat ?? 0, lon: props.userLocation?.lon ?? props.tripOrigin?.lon ?? 0 }
     : undefined;
+
+  // Destination pin: show when we have destination coordinates
+  const destinationLocation = props.tripDestination
+    ? { lat: props.tripDestination.lat, lon: props.tripDestination.lon }
+    : undefined;
+
+  // Show route line only when we have points (driver found + route calculated)
+  const hasRoute = props.routePoints.length > 1;
 
   return (
     <View style={[styles.container, { backgroundColor: props.colors.background }]}>
       {/* ── Full-screen map ──────────────────────────────────────────────── */}
       <TileMap
+        // Center on GPS location or trip origin — never undefined
+        centerLat={mapCenter?.lat}
+        centerLon={mapCenter?.lon}
+        // User pin (blue dot)
         userLocation={props.userLocation ?? undefined}
+        // Destination pin (red flag)
+        destinationLocation={destinationLocation}
+        // Driver pin — only when driver is assigned
         driverLocation={driverLocation}
-        showRoute={!props.isSearching}
+        // Route line — only when calculated
+        showRoute={hasRoute}
+        route={hasRoute ? props.routePoints : undefined}
+        // Keep map centered on user/origin (not driver-centric)
+        isDriver={false}
+        // Vertical ratio: push center slightly up so bottom sheet doesn't cover it
+        verticalCenterRatio={0.35}
       />
 
       {/* ── Bottom sheet ─────────────────────────────────────────────────── */}

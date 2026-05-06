@@ -5,8 +5,9 @@
  * Responsibilities:
  *  - Polls the active ride snapshot every 7 s (fallback for missed WS events)
  *  - Subscribes to PassengerWebSocket for real-time status updates
- *  - Manages elapsed timer, chat, cancel dialog, and rating modal state
- *  - Exposes only serialisable, typed values to the UI layer
+ *  - Reverse-geocodes origin/destination coordinates → address strings
+ *  - Calculates route via routingService → RoutePoint[] for TileMap
+ *  - Manages elapsed timer, chat, cancel, and rating state
  *
  * Data flow: Hook → Facade → API / WebSocket (no direct Axios/Socket in hook)
  */
@@ -21,6 +22,7 @@ import { twfd } from '@/i18n/waitingForDriver';
 import { waitingForDriverFacade } from '@/services/waitingForDriver/waitingForDriverFacade';
 import { passengerWebSocket } from '@/services/websocket/PassengerWebSocket';
 import type { PassengerServerMessage } from '@/services/websocket/types/passenger.types';
+import type { RoutePoint } from '@/components/molecules/TileMap';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +58,19 @@ export function useWaitingForDriverScreen({
   const [estimatedFare, setEstimatedFare] = useState<number | null>(
     initialEstimatedFare ?? activeTrip?.estimated_fare ?? null,
   );
+
+  // ── Location state ──────────────────────────────────────────────────────
+  // userLocation: device GPS (for the user pin on the map)
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  // tripOrigin: origin coordinates from the active trip (for map centering)
+  const [tripOrigin, setTripOrigin] = useState<{ lat: number; lon: number } | null>(
+    activeTrip?.origin ? { lat: activeTrip.origin.lat, lon: activeTrip.origin.lng } : null,
+  );
+  const [tripDestination, setTripDestination] = useState<{ lat: number; lon: number } | null>(
+    activeTrip?.destination ? { lat: activeTrip.destination.lat, lon: activeTrip.destination.lng } : null,
+  );
+
+  // ── Address strings (from reverse geocoding) ────────────────────────────
   const [originAddress, setOriginAddress] = useState<string | undefined>(
     activeTrip?.origin?.address,
   );
@@ -66,6 +80,9 @@ export function useWaitingForDriverScreen({
   const [categoryName, setCategoryName] = useState<string | undefined>(
     activeTrip?.category?.name,
   );
+
+  // ── Route points for TileMap ────────────────────────────────────────────
+  const [routePoints, setRoutePoints] = useState<RoutePoint[]>([]);
 
   // ── Rating state ────────────────────────────────────────────────────────
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
@@ -80,7 +97,13 @@ export function useWaitingForDriverScreen({
     [driver, tripStatus],
   );
 
-  // ── Location ────────────────────────────────────────────────────────────
+  // The map center: prefer device GPS, fall back to trip origin coordinates
+  const mapCenter = useMemo(
+    () => userLocation ?? tripOrigin ?? null,
+    [userLocation, tripOrigin],
+  );
+
+  // ── Device GPS ──────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -94,13 +117,62 @@ export function useWaitingForDriverScreen({
           setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         }
       } catch {
-        // Location unavailable — map will render without user pin
+        // Location unavailable — map will center on trip origin instead
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // ── Reverse geocoding ───────────────────────────────────────────────────
+  // Called once when we have coordinates but no address string yet.
+  const geocodedOriginRef = useRef<string | null>(null);
+  const geocodedDestRef = useRef<string | null>(null);
+
+  const geocodeAddresses = useCallback(
+    async (
+      origin: { lat: number; lon: number } | null,
+      destination: { lat: number; lon: number } | null,
+    ) => {
+      if (origin && !geocodedOriginRef.current) {
+        const addr = await waitingForDriverFacade.reverseGeocodeCoords(origin.lat, origin.lon);
+        if (addr) {
+          geocodedOriginRef.current = addr;
+          setOriginAddress(addr);
+        }
+      }
+      if (destination && !geocodedDestRef.current) {
+        const addr = await waitingForDriverFacade.reverseGeocodeCoords(
+          destination.lat,
+          destination.lon,
+        );
+        if (addr) {
+          geocodedDestRef.current = addr;
+          setDestinationAddress(addr);
+        }
+      }
+    },
+    [],
+  );
+
+  // ── Route calculation ───────────────────────────────────────────────────
+  const routeCalculatedRef = useRef(false);
+
+  const calculateRoute = useCallback(
+    async (
+      origin: { lat: number; lon: number } | null,
+      destination: { lat: number; lon: number } | null,
+    ) => {
+      if (!origin || !destination || routeCalculatedRef.current) return;
+      routeCalculatedRef.current = true;
+      const points = await waitingForDriverFacade.fetchRoutePoints(origin, destination);
+      if (points.length > 0) {
+        setRoutePoints(points);
+      }
+    },
+    [],
+  );
 
   // ── Polling sync ────────────────────────────────────────────────────────
   const syncRef = useRef(false);
@@ -112,21 +184,58 @@ export function useWaitingForDriverScreen({
       await refreshTrip();
       const snapshot = await waitingForDriverFacade.fetchActiveRideSnapshot(rideId);
       if (!snapshot) return;
+
       setTripStatus(snapshot.status);
       setEstimatedFare(snapshot.estimatedFare);
       setDriver(snapshot.driver);
       updateRideStatus(snapshot.status);
+
+      // Update coordinates if we didn't have them yet
+      if (snapshot.origin) {
+        setTripOrigin(snapshot.origin);
+      }
+      if (snapshot.destination) {
+        const dest = { lat: snapshot.destination.lat, lon: snapshot.destination.lng };
+        setTripDestination(dest);
+      }
+
+      // Trigger geocoding and routing with fresh coordinates
+      const destAsLon = snapshot.destination
+        ? { lat: snapshot.destination.lat, lon: snapshot.destination.lng }
+        : null;
+      void geocodeAddresses(snapshot.origin, destAsLon);
+      void calculateRoute(snapshot.origin, destAsLon);
     } finally {
       syncRef.current = false;
     }
-  }, [refreshTrip, rideId, updateRideStatus]);
+  }, [calculateRoute, geocodeAddresses, refreshTrip, rideId, updateRideStatus]);
 
+  // Initial sync + polling interval
   useEffect(() => {
     if (!rideId) return;
     void syncSnapshot();
     const timer = setInterval(() => void syncSnapshot(), 7_000);
     return () => clearInterval(timer);
   }, [rideId, syncSnapshot]);
+
+  // Geocode and route from activeTrip on mount (if coordinates already available)
+  useEffect(() => {
+    if (!activeTrip) return;
+    const origin = activeTrip.origin
+      ? { lat: activeTrip.origin.lat, lon: activeTrip.origin.lng }
+      : null;
+    const destination = activeTrip.destination
+      ? { lat: activeTrip.destination.lat, lon: activeTrip.destination.lng }
+      : null;
+
+    if (activeTrip.origin?.address) setOriginAddress(activeTrip.origin.address);
+    if (activeTrip.destination?.address) setDestinationAddress(activeTrip.destination.address);
+    if (activeTrip.category?.name) setCategoryName(activeTrip.category.name);
+
+    void geocodeAddresses(origin, destination);
+    void calculateRoute(origin, destination);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally run only on mount
 
   // ── WebSocket subscription ───────────────────────────────────────────────
   useEffect(() => {
@@ -154,13 +263,6 @@ export function useWaitingForDriverScreen({
       passengerWebSocket.setOnMessage(() => undefined);
     };
   }, [onNavigateMain, syncSnapshot, updateRideStatus]);
-
-  // ── Sync activeTrip fields when context updates ──────────────────────────
-  useEffect(() => {
-    if (activeTrip?.origin?.address) setOriginAddress(activeTrip.origin.address);
-    if (activeTrip?.destination?.address) setDestinationAddress(activeTrip.destination.address);
-    if (activeTrip?.category?.name) setCategoryName(activeTrip.category.name);
-  }, [activeTrip]);
 
   // ── Rating trigger ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -221,7 +323,14 @@ export function useWaitingForDriverScreen({
     tripStatus,
     estimatedFare,
     isSearching,
+    /** Device GPS location (for user pin). May be null until permission granted. */
     userLocation,
+    /** Trip origin coordinates (for map centering when GPS unavailable). */
+    tripOrigin,
+    /** Trip destination coordinates (for destination pin). */
+    tripDestination,
+    /** Calculated route points for TileMap route line. */
+    routePoints,
     originAddress,
     destinationAddress,
     categoryName,

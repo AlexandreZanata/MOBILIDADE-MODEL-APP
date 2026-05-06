@@ -1,7 +1,7 @@
 /**
  * @file useWaitingForDriverScreen.test.ts
- * @description Unit tests for the WaitingForDriver hook logic.
- * Tests the facade and service layer interactions without React rendering.
+ * @description Unit tests for the WaitingForDriver facade and service layer.
+ * Tests: status checks, snapshot mapping, geocoding, routing, rating submission.
  */
 import { waitingForDriverFacade } from '@/services/waitingForDriver/waitingForDriverFacade';
 
@@ -18,11 +18,29 @@ jest.mock('@/models/waitingForDriver/schemas', () => ({
   parseWaitingActiveRide: jest.fn((data: unknown) => data),
 }));
 
+jest.mock('@/services/places', () => ({
+  reverseGeocode: jest.fn(),
+}));
+
+jest.mock('@/services/routing', () => ({
+  routingService: {
+    calculateRouteAsPoints: jest.fn(),
+  },
+}));
+
 const { apiService } = require('@/services/api') as {
   apiService: {
     getPassengerActiveRide: jest.Mock;
     passengerRideRate: jest.Mock;
   };
+};
+
+const { reverseGeocode } = require('@/services/places') as {
+  reverseGeocode: jest.Mock;
+};
+
+const { routingService } = require('@/services/routing') as {
+  routingService: { calculateRouteAsPoints: jest.Mock };
 };
 
 // ── WaitingForDriverFacade ────────────────────────────────────────────────────
@@ -44,6 +62,9 @@ describe('waitingForDriverFacade', () => {
       'DRIVER_NEARBY',
       'DRIVER_ARRIVED',
       'IN_PROGRESS',
+      'DRIVER_ASSIGNED',
+      'MOTORISTA_ENCONTRADO',
+      'AGUARDANDO_MOTORISTA',
     ];
 
     it.each(acceptedStatuses)('returns true for status %s', (status) => {
@@ -134,9 +155,10 @@ describe('waitingForDriverFacade', () => {
       expect(snapshot?.estimatedFare).toBe(28.5);
       expect(snapshot?.driver?.name).toBe('Carlos');
       expect(snapshot?.driver?.vehicle?.plate).toBe('ABC-1234');
+      expect(snapshot?.origin).toEqual({ lat: -11.0, lon: -55.0 });
     });
 
-    it('uses fallbackRideId when response id is missing', async () => {
+    it('uses fallbackRideId when response id is empty', async () => {
       apiService.getPassengerActiveRide.mockResolvedValue({
         success: true,
         data: { id: '', status: 'REQUESTED', estimated_fare: 20 },
@@ -154,6 +176,89 @@ describe('waitingForDriverFacade', () => {
 
       const snapshot = await waitingForDriverFacade.fetchActiveRideSnapshot('trip-1');
       expect(snapshot?.estimatedFare).toBe(25);
+    });
+  });
+
+  // ── reverseGeocodeCoords ────────────────────────────────────────────────
+
+  describe('reverseGeocodeCoords', () => {
+    it('returns the address name from reverseGeocode', async () => {
+      reverseGeocode.mockResolvedValue({
+        name: 'Rua das Flores',
+        display_name: 'Rua das Flores, 123, Sorriso, MT',
+        place_id: 'abc',
+        lat: '-11.0',
+        lon: '-55.0',
+        type: 'geocode',
+      });
+
+      const result = await waitingForDriverFacade.reverseGeocodeCoords(-11.0, -55.0);
+      expect(result).toBe('Rua das Flores');
+      expect(reverseGeocode).toHaveBeenCalledWith(-11.0, -55.0);
+    });
+
+    it('falls back to display_name when name is missing', async () => {
+      reverseGeocode.mockResolvedValue({
+        name: '',
+        display_name: 'Av. Brasil, 456',
+        place_id: 'xyz',
+        lat: '-11.1',
+        lon: '-55.1',
+        type: 'geocode',
+      });
+
+      const result = await waitingForDriverFacade.reverseGeocodeCoords(-11.1, -55.1);
+      expect(result).toBe('Av. Brasil, 456');
+    });
+
+    it('returns null when reverseGeocode returns null', async () => {
+      reverseGeocode.mockResolvedValue(null);
+      const result = await waitingForDriverFacade.reverseGeocodeCoords(-11.0, -55.0);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when reverseGeocode throws', async () => {
+      reverseGeocode.mockRejectedValue(new Error('Network error'));
+      const result = await waitingForDriverFacade.reverseGeocodeCoords(-11.0, -55.0);
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── fetchRoutePoints ────────────────────────────────────────────────────
+
+  describe('fetchRoutePoints', () => {
+    const origin = { lat: -11.0, lon: -55.0 };
+    const destination = { lat: -11.1, lon: -55.1 };
+
+    it('returns route points on success', async () => {
+      const points = [
+        { lat: -11.0, lon: -55.0 },
+        { lat: -11.05, lon: -55.05 },
+        { lat: -11.1, lon: -55.1 },
+      ];
+      routingService.calculateRouteAsPoints.mockResolvedValue({ success: true, data: points });
+
+      const result = await waitingForDriverFacade.fetchRoutePoints(origin, destination);
+      expect(result).toEqual(points);
+      expect(routingService.calculateRouteAsPoints).toHaveBeenCalledWith(origin, destination);
+    });
+
+    it('returns empty array when routing fails', async () => {
+      routingService.calculateRouteAsPoints.mockResolvedValue({ success: false });
+      const result = await waitingForDriverFacade.fetchRoutePoints(origin, destination);
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array when routing throws', async () => {
+      routingService.calculateRouteAsPoints.mockRejectedValue(new Error('Timeout'));
+      const result = await waitingForDriverFacade.fetchRoutePoints(origin, destination);
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array when data is null', async () => {
+      routingService.calculateRouteAsPoints.mockResolvedValue({ success: true, data: null });
+      const result = await waitingForDriverFacade.fetchRoutePoints(origin, destination);
+      expect(result).toEqual([]);
     });
   });
 
