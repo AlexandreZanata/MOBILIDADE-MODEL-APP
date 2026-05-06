@@ -16,8 +16,6 @@ import { ProfileDriverFieldRow } from '@/models/profile/types';
 
 export interface ProfilePersonalInfoSectionProps {
   isLoading: boolean;
-  isCollapsed: boolean;
-  onToggleCollapsed(): void;
   isEditing: boolean;
   onPressEditSave(): void;
   draftName: string;
@@ -48,8 +46,6 @@ export interface ProfilePersonalInfoSectionProps {
 
 export function ProfilePersonalInfoSection({
   isLoading,
-  isCollapsed,
-  onToggleCollapsed,
   isEditing,
   onPressEditSave,
   draftName,
@@ -87,7 +83,6 @@ export function ProfilePersonalInfoSection({
       justifyContent: 'space-between',
       marginBottom: spacing.xs,
     },
-    headLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
     sectionLabel: { ...typography.label, color: colors.textSecondary, flex: 1 },
     editBtn: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
     editBtnText: { ...typography.body, fontWeight: '500', color: colors.accent },
@@ -180,30 +175,20 @@ export function ProfilePersonalInfoSection({
   return (
     <View style={styles.wrap}>
       <View style={styles.headRow}>
-        <Pressable style={styles.headLeft} onPress={onToggleCollapsed} accessibilityRole="button">
-          <Ionicons
-            name={isCollapsed ? 'chevron-down' : 'chevron-up'}
-            size={spacing.lg}
-            color={colors.textSecondary}
-          />
-          <Text style={styles.sectionLabel}>{tp('personalInfoTitle')}</Text>
+        <Text style={styles.sectionLabel}>{tp('personalInfoTitle')}</Text>
+        <Pressable style={styles.editBtn} onPress={onPressEditSave} accessibilityRole="button">
+          <Text style={styles.editBtnText}>{isEditing ? tp('saveButton') : tp('editButton')}</Text>
         </Pressable>
-        {!isCollapsed ? (
-          <Pressable style={styles.editBtn} onPress={onPressEditSave} accessibilityRole="button">
-            <Text style={styles.editBtnText}>{isEditing ? tp('saveButton') : tp('editButton')}</Text>
-          </Pressable>
-        ) : null}
       </View>
-      {!isCollapsed ? <Text style={styles.subtitle}>{tp('personalInfoSubtitle')}</Text> : null}
-      {!isCollapsed ? (
-        <Card style={styles.card}>
-          {isLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={styles.loadingText}>{tp('loadingData')}</Text>
-            </View>
-          ) : (
-            <>
+      <Text style={styles.subtitle}>{tp('personalInfoSubtitle')}</Text>
+      <Card style={styles.card}>
+        {isLoading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.loadingText}>{tp('loadingData')}</Text>
+          </View>
+        ) : (
+          <>
               <View style={styles.row}>
                 <Text style={styles.label}>{tp('name')}</Text>
                 {isEditing ? (
@@ -263,10 +248,9 @@ export function ProfilePersonalInfoSection({
                   )}
                 </Pressable>
               ) : null}
-            </>
-          )}
-        </Card>
-      ) : null}
+          </>
+        )}
+      </Card>
     </View>
   );
 }

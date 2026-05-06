@@ -60,8 +60,6 @@ export const ProfileScreen: React.FC = () => {
         ) : null}
         <ProfilePersonalInfoSection
           isLoading={vm.isLoading}
-          isCollapsed={vm.personalCollapsed}
-          onToggleCollapsed={() => vm.setPersonalCollapsed((c) => !c)}
           isEditing={vm.isEditingPersonal}
           onPressEditSave={vm.onPressEditSave}
           draftName={vm.draftName}

@@ -28,7 +28,6 @@ export function useProfileScreen() {
   const [rating, setRating] = useState<ProfileRating | null>(null);
   const [cachedPhotoUrl, setCachedPhotoUrl] = useState<string | undefined>(undefined);
   const [notifGranted, setNotifGranted] = useState(false);
-  const [personalCollapsed, setPersonalCollapsed] = useState(true);
   const [revealedCpf, setRevealedCpf] = useState(false);
   const [revealedPhone, setRevealedPhone] = useState(false);
   const [isEditingPersonal, setIsEditingPersonal] = useState(false);
@@ -254,8 +253,6 @@ export function useProfileScreen() {
     userIsDriver,
     settingsGroups,
     showCnhUpload,
-    personalCollapsed,
-    setPersonalCollapsed,
     isEditingPersonal,
     draftName,
     setDraftName,
