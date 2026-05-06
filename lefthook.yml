@@ -8,6 +8,8 @@ pre-commit:
   commands:
     validate-app-structure:
       run: bash scripts/validate-app-structure.sh
+    lint:
+      run: bash scripts/validate-lint.sh
     typecheck:
       run: npm run typecheck
     test:
