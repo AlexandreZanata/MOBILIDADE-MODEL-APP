@@ -101,6 +101,8 @@ export function useTileMapController({
   const userMovedMap = useRef(false);
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastPan = useRef({ x: 0, y: 0 });
+  /** Last `centerLat`/`centerLon` applied from props — detects programmatic recenter from parent. */
+  const lastPropCenterRef = useRef<{ lat: number; lon: number } | null>(null);
 
   // Pinch state — stored in refs so PanResponder closure always sees latest
   const pinchStartZoomRef = useRef(mapZoom);
@@ -117,13 +119,32 @@ export function useTileMapController({
     return () => sub?.remove();
   }, []);
 
-  // ─── Auto-center ─────────────────────────────────────────────────────────
+  // ─── Sync center from parent (e.g. "my location" / recenter) ─────────────
+  // After a pan, `userMovedMap` stays true; we must still apply new center props
+  // and reset pan — otherwise FAB / locate never re-centers the map.
   useEffect(() => {
-    if (!userMovedMap.current) {
-      setCurrentCenterLat(centerLat);
-      setCurrentCenterLon(centerLon);
-    }
-  }, [centerLat, centerLon]);
+    setCurrentCenterLat(centerLat);
+    setCurrentCenterLon(centerLon);
+
+    const prev = lastPropCenterRef.current;
+    const centerChanged =
+      prev === null ||
+      Math.abs(prev.lat - centerLat) > 1e-6 ||
+      Math.abs(prev.lon - centerLon) > 1e-6;
+    lastPropCenterRef.current = { lat: centerLat, lon: centerLon };
+
+    if (!centerChanged) return;
+
+    userMovedMap.current = false;
+    Animated.timing(pan, {
+      toValue: { x: 0, y: 0 },
+      duration: 280,
+      useNativeDriver: false,
+    }).start();
+    lastPan.current = { x: 0, y: 0 };
+    setPanX(0);
+    setPanY(0);
+  }, [centerLat, centerLon, pan]);
 
   // ─── Imperative handle ───────────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
