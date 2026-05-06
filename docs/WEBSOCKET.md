@@ -26,11 +26,11 @@
 
 GovMobile uses three independent WebSocket connections, each scoped to a specific domain:
 
-| Connection | Endpoint | Role | Purpose |
-|---|---|---|---|
-| Driver WS | `/ws/drivers` | DRIVER | Location streaming, ride offers, status updates |
-| Passenger WS | `/ws/passengers` | PASSENGER / ADMIN | Ride status updates, driver location |
-| Chat WS | `/ws/drivers/chat` or `/ws/passengers/chat` | ALL | Real-time chat messages |
+| Connection   | Endpoint                                    | Role              | Purpose                                         |
+|--------------|---------------------------------------------|-------------------|-------------------------------------------------|
+| Driver WS    | `/ws/drivers`                               | DRIVER            | Location streaming, ride offers, status updates |
+| Passenger WS | `/ws/passengers`                            | PASSENGER / ADMIN | Ride status updates, driver location            |
+| Chat WS      | `/ws/drivers/chat` or `/ws/passengers/chat` | ALL               | Real-time chat messages                         |
 
 All connections use **WSS** (WebSocket Secure) over `wss://vamu.joaoflavio.com`.
 
@@ -68,27 +68,27 @@ The JWT is passed as a query parameter. The token is URL-encoded before appendin
 
 ### Client → Server messages
 
-| Type | Payload | Description |
-|---|---|---|
-| `location_update` | `{ lat, lng, heading?, speed? }` | GPS position update |
-| `heartbeat` | — | Keep-alive ping |
-| `status_update` | `{ status: OperationalStatus }` | Driver availability change |
-| `ride_response` | `{ rideId, action: 'accept' \| 'reject' }` | Respond to a ride offer |
+| Type              | Payload                                    | Description                |
+|-------------------|--------------------------------------------|----------------------------|
+| `location_update` | `{ lat, lng, heading?, speed? }`           | GPS position update        |
+| `heartbeat`       | —                                          | Keep-alive ping            |
+| `status_update`   | `{ status: OperationalStatus }`            | Driver availability change |
+| `ride_response`   | `{ rideId, action: 'accept' \| 'reject' }` | Respond to a ride offer    |
 
 ### Server → Client messages
 
-| Type | Description |
-|---|---|
-| `connected` | Connection established |
-| `location_update` | Location acknowledged |
-| `pong` | Heartbeat response |
-| `status_updated` | Status change confirmed |
-| `passenger_location` | Passenger GPS position |
-| `ride_offer` | New ride offer with fare, distance, ETA |
-| `ride_accepted` | Ride acceptance confirmed |
-| `ride_rejected` | Ride rejection confirmed |
-| `active_ride` | Active ride state sent on reconnection |
-| `error` | Server-side error |
+| Type                 | Description                             |
+|----------------------|-----------------------------------------|
+| `connected`          | Connection established                  |
+| `location_update`    | Location acknowledged                   |
+| `pong`               | Heartbeat response                      |
+| `status_updated`     | Status change confirmed                 |
+| `passenger_location` | Passenger GPS position                  |
+| `ride_offer`         | New ride offer with fare, distance, ETA |
+| `ride_accepted`      | Ride acceptance confirmed               |
+| `ride_rejected`      | Ride rejection confirmed                |
+| `active_ride`        | Active ride state sent on reconnection  |
+| `error`              | Server-side error                       |
 
 ### `ride_offer` payload
 
@@ -119,25 +119,25 @@ The JWT is passed as a query parameter. The token is URL-encoded before appendin
 
 ### Client → Server messages
 
-| Type | Payload | Description |
-|---|---|---|
+| Type              | Payload                          | Description            |
+|-------------------|----------------------------------|------------------------|
 | `location_update` | `{ lat, lng, heading?, speed? }` | Passenger GPS position |
-| `heartbeat` | — | Keep-alive ping |
+| `heartbeat`       | —                                | Keep-alive ping        |
 
 ### Server → Client messages
 
-| Type | Description |
-|---|---|
-| `connected` | Connection established |
-| `location_updated` | Location acknowledged |
-| `pong` | Heartbeat response |
-| `ride_driver_accepted` | Driver accepted the ride |
+| Type                     | Description                  |
+|--------------------------|------------------------------|
+| `connected`              | Connection established       |
+| `location_updated`       | Location acknowledged        |
+| `pong`                   | Heartbeat response           |
+| `ride_driver_accepted`   | Driver accepted the ride     |
 | `ride_driver_on_the_way` | Driver is en route to pickup |
-| `ride_driver_nearby` | Driver is nearby |
-| `ride_driver_arrived` | Driver has arrived at pickup |
-| `ride_status_update` | Generic status change |
-| `ride_cancelled` | Ride was cancelled |
-| `error` | Server-side error |
+| `ride_driver_nearby`     | Driver is nearby             |
+| `ride_driver_arrived`    | Driver has arrived at pickup |
+| `ride_status_update`     | Generic status change        |
+| `ride_cancelled`         | Ride was cancelled           |
+| `error`                  | Server-side error            |
 
 ---
 
@@ -149,23 +149,23 @@ The JWT is passed as a query parameter. The token is URL-encoded before appendin
 
 ### Client → Server messages
 
-| Type | Payload | Description |
-|---|---|---|
-| `chat_message` | `{ data: { rideId, content } }` | Send a chat message |
-| `mark_read` | `{ data: { rideId, messageIds[] } }` | Mark messages as read |
-| `heartbeat` | — | Keep-alive ping (every 30s) |
+| Type           | Payload                              | Description                 |
+|----------------|--------------------------------------|-----------------------------|
+| `chat_message` | `{ data: { rideId, content } }`      | Send a chat message         |
+| `mark_read`    | `{ data: { rideId, messageIds[] } }` | Mark messages as read       |
+| `heartbeat`    | —                                    | Keep-alive ping (every 30s) |
 
 ### Server → Client messages
 
-| Type | Description |
-|---|---|
-| `chat_message` | New message received |
+| Type                 | Description                      |
+|----------------------|----------------------------------|
+| `chat_message`       | New message received             |
 | `delivery_confirmed` | Message delivered (2 grey ticks) |
-| `read_confirmed` | Message read (2 blue ticks) |
-| `unread_count` | Badge count update |
-| `user_online_status` | Other user's online status |
-| `pong` | Heartbeat response |
-| `error` | Server-side error |
+| `read_confirmed`     | Message read (2 blue ticks)      |
+| `unread_count`       | Badge count update               |
+| `user_online_status` | Other user's online status       |
+| `pong`               | Heartbeat response               |
+| `error`              | Server-side error                |
 
 ### Rate limits (client-side enforcement)
 
@@ -180,11 +180,11 @@ The JWT is passed as a query parameter. The token is URL-encoded before appendin
 All WebSocket connections must send periodic heartbeats to keep the connection alive
 and detect silent disconnections.
 
-| Connection | Interval | Message |
-|---|---|---|
-| Driver WS | 10s | `{ type: 'heartbeat' }` |
-| Passenger WS | 10s | `{ type: 'heartbeat' }` |
-| Chat WS | 30s | `{ type: 'heartbeat' }` |
+| Connection   | Interval | Message                 |
+|--------------|----------|-------------------------|
+| Driver WS    | 10s      | `{ type: 'heartbeat' }` |
+| Passenger WS | 10s      | `{ type: 'heartbeat' }` |
+| Chat WS      | 30s      | `{ type: 'heartbeat' }` |
 
 The server responds with `{ type: 'pong' }`. If no pong is received within 2× the
 heartbeat interval, the client should treat the connection as dropped and reconnect.

@@ -11,21 +11,21 @@ via OneSignal.
 
 ## Tech Stack
 
-| Layer               | Technology                                                |
-|---------------------|-----------------------------------------------------------|
-| Mobile framework    | React Native 0.81 + Expo SDK 54                           |
-| Language            | TypeScript 5.9 (strict)                                   |
-| Global state        | Redux Toolkit 2 + redux-persist                           |
-| Navigation          | React Navigation 6 (stack + bottom tabs)                  |
-| Realtime            | Socket.IO Client 4                                        |
-| HTTP                | Axios 1.6                                                 |
-| Maps                | @rnmapbox/maps 10                                         |
-| Push notifications  | react-native-onesignal 5 + onesignal-expo-plugin          |
-| Internationalization| i18next + react-i18next (pt-BR, en-US, es)                |
-| Schema validation   | Zod 4                                                     |
-| Testing             | Jest 29 + @testing-library/react-native 13 + fast-check 4 |
-| Build / distribution| EAS Build (Expo Application Services)                     |
-| Minimum Node        | 18                                                        |
+| Layer                | Technology                                                |
+|----------------------|-----------------------------------------------------------|
+| Mobile framework     | React Native 0.81 + Expo SDK 54                           |
+| Language             | TypeScript 5.9 (strict)                                   |
+| Global state         | Redux Toolkit 2 + redux-persist                           |
+| Navigation           | React Navigation 6 (stack + bottom tabs)                  |
+| Realtime             | Socket.IO Client 4                                        |
+| HTTP                 | Axios 1.6                                                 |
+| Maps                 | @rnmapbox/maps 10                                         |
+| Push notifications   | react-native-onesignal 5 + onesignal-expo-plugin          |
+| Internationalization | i18next + react-i18next (pt-BR, en-US, es)                |
+| Schema validation    | Zod 4                                                     |
+| Testing              | Jest 29 + @testing-library/react-native 13 + fast-check 4 |
+| Build / distribution | EAS Build (Expo Application Services)                     |
+| Minimum Node         | 18                                                        |
 
 ---
 
@@ -148,19 +148,19 @@ Domain file pattern:
 
 Reusable hooks that do not belong to a specific screen:
 
-| Hook | Responsibility |
-|---|---|
-| `useAuthSession` | Session hydration, token refresh, driver status restoration |
-| `useRealtimeSession` | WebSocket connection lifecycle (connect/disconnect based on auth) |
-| `useRideReconnection` | Active ride reconnection after socket drop (3s timer + REST fallback) |
-| `useNetworkManager` | Orchestrates `ReconnectionManager` with exponential backoff |
-| `useNetworkStatus` | Monitors connectivity via `NetworkMonitor` |
-| `useDriverLocationStream` | GPS streaming via `update-position` every 1s |
-| `usePassengerRealtime` | Passenger-side realtime event subscription |
-| `useNotifications` | OneSignal lifecycle (link/unlink external user ID) |
-| `useAppLocationBootstrap` | Location permission initialization |
-| `useRideContext` | Active ride context sync via REST |
-| `useReverseGeocode` | Reverse geocoding of coordinates |
+| Hook                      | Responsibility                                                        |
+|---------------------------|-----------------------------------------------------------------------|
+| `useAuthSession`          | Session hydration, token refresh, driver status restoration           |
+| `useRealtimeSession`      | WebSocket connection lifecycle (connect/disconnect based on auth)     |
+| `useRideReconnection`     | Active ride reconnection after socket drop (3s timer + REST fallback) |
+| `useNetworkManager`       | Orchestrates `ReconnectionManager` with exponential backoff           |
+| `useNetworkStatus`        | Monitors connectivity via `NetworkMonitor`                            |
+| `useDriverLocationStream` | GPS streaming via `update-position` every 1s                          |
+| `usePassengerRealtime`    | Passenger-side realtime event subscription                            |
+| `useNotifications`        | OneSignal lifecycle (link/unlink external user ID)                    |
+| `useAppLocationBootstrap` | Location permission initialization                                    |
+| `useRideContext`          | Active ride context sync via REST                                     |
+| `useReverseGeocode`       | Reverse geocoding of coordinates                                      |
 
 ---
 
@@ -171,20 +171,20 @@ Reusable hooks that do not belong to a specific screen:
 One facade per API domain. Each facade implements an interface (`IXxxFacade`) and returns
 `Result<T, FacadeError>` — never throws exceptions.
 
-| Facade | Domain |
-|---|---|
-| `AuthFacade` | Login, logout, token refresh |
-| `RideFacade` | Ride CRUD, lifecycle (accept, finish...) |
-| `FleetFacade` | Drivers, vehicles, operational status |
-| `RealtimeFacade` | WebSocket `/dispatch` — connection, events, telemetry |
-| `SearchFacade` | Geocoding, routes, address search |
-| `CartographyFacade` | Cartographic data |
-| `ChatFacade` | Chat messages |
-| `RatingsFacade` | Ride ratings |
-| `NotificationFacade` | In-app notifications |
-| `ServersFacade` | Public servant data |
-| `CallFacade` | Voice calls |
-| `RunFacade` | Ride simulation (dev/mock) |
+| Facade               | Domain                                                |
+|----------------------|-------------------------------------------------------|
+| `AuthFacade`         | Login, logout, token refresh                          |
+| `RideFacade`         | Ride CRUD, lifecycle (accept, finish...)              |
+| `FleetFacade`        | Drivers, vehicles, operational status                 |
+| `RealtimeFacade`     | WebSocket `/dispatch` — connection, events, telemetry |
+| `SearchFacade`       | Geocoding, routes, address search                     |
+| `CartographyFacade`  | Cartographic data                                     |
+| `ChatFacade`         | Chat messages                                         |
+| `RatingsFacade`      | Ride ratings                                          |
+| `NotificationFacade` | In-app notifications                                  |
+| `ServersFacade`      | Public servant data                                   |
+| `CallFacade`         | Voice calls                                           |
+| `RunFacade`          | Ride simulation (dev/mock)                            |
 
 #### facades/mock/
 
@@ -265,18 +265,18 @@ RootNavigator
 
 Pure TypeScript types representing backend entities:
 
-| Model | Entity |
-|---|---|
-| `Ride.ts` | Ride, status, coordinates, state helpers (`canBeCancelled`, `normalizeStatus`) |
-| `Driver.ts` | Driver, `DriverOperationalStatus` |
-| `User.ts` | Authenticated user |
-| `Server.ts` | Public servant |
-| `Vehicle.ts` | Fleet vehicle |
-| `Message.ts` | Chat message |
-| `Call.ts` | Voice call |
-| `Notification.ts` | In-app notification |
-| `Rating.ts` | Ride rating |
-| `Department.ts` | Department |
+| Model             | Entity                                                                         |
+|-------------------|--------------------------------------------------------------------------------|
+| `Ride.ts`         | Ride, status, coordinates, state helpers (`canBeCancelled`, `normalizeStatus`) |
+| `Driver.ts`       | Driver, `DriverOperationalStatus`                                              |
+| `User.ts`         | Authenticated user                                                             |
+| `Server.ts`       | Public servant                                                                 |
+| `Vehicle.ts`      | Fleet vehicle                                                                  |
+| `Message.ts`      | Chat message                                                                   |
+| `Call.ts`         | Voice call                                                                     |
+| `Notification.ts` | In-app notification                                                            |
+| `Rating.ts`       | Ride rating                                                                    |
+| `Department.ts`   | Department                                                                     |
 
 ---
 
@@ -335,14 +335,14 @@ ENV.oneSignalAppId
 
 Jest auto-mocks for modules that do not work in a Node environment:
 
-| Mock | Replaced module |
-|---|---|
-| `expo-secure-store.ts` | Secure storage |
-| `expo-constants.ts` | Expo constants |
-| `react-native-safe-area-context.tsx` | Safe area insets |
-| `react-native-onesignal.ts` | OneSignal SDK |
+| Mock                                  | Replaced module     |
+|---------------------------------------|---------------------|
+| `expo-secure-store.ts`                | Secure storage      |
+| `expo-constants.ts`                   | Expo constants      |
+| `react-native-safe-area-context.tsx`  | Safe area insets    |
+| `react-native-onesignal.ts`           | OneSignal SDK       |
 | `react-native-keyboard-controller.ts` | Keyboard controller |
-| `@expo/vector-icons.tsx` | Vector icons |
+| `@expo/vector-icons.tsx`              | Vector icons        |
 
 ---
 
@@ -417,21 +417,21 @@ scripts/
 
 ### npm Scripts
 
-| Command | What it does |
-|---|---|
-| `npm test` | Jest in watch mode |
-| `npm run test:ci` | Jest without watch, with coverage |
-| `npm run test:coverage` | Jest with coverage report |
-| `npm run lint` | ESLint on all .ts/.tsx |
-| `npm run lint:fix` | ESLint with auto-fix |
-| `npm run type-check` | `tsc --noEmit` |
-| `npm run guard:all` | type-check + tests |
-| `npm run guard:strict` | type-check + lint + tests |
-| `npm run guard:changed` | tests on changed files only |
-| `npm run guard:install-hook` | installs pre-push hook |
-| `npm start` | Expo dev server |
-| `npm run android` | Build and run on Android |
-| `npm run build:dev:android` | EAS development build |
+| Command                      | What it does                      |
+|------------------------------|-----------------------------------|
+| `npm test`                   | Jest in watch mode                |
+| `npm run test:ci`            | Jest without watch, with coverage |
+| `npm run test:coverage`      | Jest with coverage report         |
+| `npm run lint`               | ESLint on all .ts/.tsx            |
+| `npm run lint:fix`           | ESLint with auto-fix              |
+| `npm run type-check`         | `tsc --noEmit`                    |
+| `npm run guard:all`          | type-check + tests                |
+| `npm run guard:strict`       | type-check + lint + tests         |
+| `npm run guard:changed`      | tests on changed files only       |
+| `npm run guard:install-hook` | installs pre-push hook            |
+| `npm start`                  | Expo dev server                   |
+| `npm run android`            | Build and run on Android          |
+| `npm run build:dev:android`  | EAS development build             |
 
 ---
 
@@ -455,11 +455,11 @@ Jobs:
 
 Distribution builds are done via **EAS Build**, with three profiles:
 
-| Profile | Distribution | APP_ENV |
-|---|---|---|
+| Profile       | Distribution   | APP_ENV     |
+|---------------|----------------|-------------|
 | `development` | Internal (APK) | development |
-| `preview` | Internal | staging |
-| `production` | Store | production |
+| `preview`     | Internal       | staging     |
+| `production`  | Store          | production  |
 
 ---
 
@@ -483,19 +483,19 @@ ONESIGNAL_APP_ID=     # OneSignal App ID
 
 Configured in `babel.config.js` (runtime) and `tsconfig.json` (type-check):
 
-| Alias | Real path |
-|---|---|
+| Alias           | Real path          |
+|-----------------|--------------------|
 | `@components/*` | `src/components/*` |
-| `@screens/*` | `src/screens/*` |
+| `@screens/*`    | `src/screens/*`    |
 | `@navigation/*` | `src/navigation/*` |
-| `@services/*` | `src/services/*` |
-| `@models/*` | `src/models/*` |
-| `@store/*` | `src/store/*` |
-| `@hooks/*` | `src/hooks/*` |
-| `@i18n/*` | `src/i18n/*` |
-| `@theme/*` | `src/theme/*` |
-| `@utils/*` | `src/utils/*` |
-| `@config/*` | `src/config/*` |
+| `@services/*`   | `src/services/*`   |
+| `@models/*`     | `src/models/*`     |
+| `@store/*`      | `src/store/*`      |
+| `@hooks/*`      | `src/hooks/*`      |
+| `@i18n/*`       | `src/i18n/*`       |
+| `@theme/*`      | `src/theme/*`      |
+| `@utils/*`      | `src/utils/*`      |
+| `@config/*`     | `src/config/*`     |
 
 ---
 
