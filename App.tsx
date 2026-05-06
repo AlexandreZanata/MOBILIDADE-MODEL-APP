@@ -22,7 +22,6 @@ import { VerifyEmailScreen } from '@/screens/VerifyEmailScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ServiceSelectionScreen } from '@/screens/ServiceSelectionScreen';
 import { TripPriceScreen } from '@/screens/TripPriceScreen';
-import { PaymentMethodScreen } from '@/screens/PaymentMethodScreen';
 import { WaitingForDriverScreen } from '@/screens/WaitingForDriverScreen';
 import { DriverScreen } from '@/screens/DriverScreen';
 import { DriverHomeScreen } from '@/screens/DriverHomeScreen';
@@ -41,31 +40,43 @@ import { DriverBillingScreen } from '@/screens/DriverBillingScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Tabs para Passageiro
-function PassengerTabs() {
+// ---------------------------------------------------------------------------
+// Shared tab bar options factory
+// ---------------------------------------------------------------------------
+
+function useTabBarScreenOptions() {
   const insets = useSafeAreaInsets();
-  const { colors} = useTheme();
-  
+  const { colors } = useTheme();
+
+  return {
+    headerShown: false,
+    tabBarActiveTintColor: colors.accent,
+    tabBarInactiveTintColor: colors.textHint,
+    tabBarStyle: {
+      backgroundColor: colors.card,
+      borderTopWidth: 0.5,
+      borderTopColor: colors.border,
+      paddingBottom: Math.max(insets.bottom, 8),
+      paddingTop: 8,
+      height: 64 + Math.max(insets.bottom - 8, 0),
+    },
+    tabBarLabelStyle: {
+      fontSize: 11,
+      fontWeight: '500' as const,
+      letterSpacing: 0.5,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tabs para Passageiro
+// ---------------------------------------------------------------------------
+
+function PassengerTabs() {
+  const screenOptions = useTabBarScreenOptions();
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          height: 60 + Math.max(insets.bottom - 8, 0),
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
@@ -110,31 +121,15 @@ function PassengerTabs() {
   );
 }
 
+// ---------------------------------------------------------------------------
 // Tabs para Motorista
+// ---------------------------------------------------------------------------
+
 function DriverTabs() {
-  const insets = useSafeAreaInsets();
-  const { colors} = useTheme();
-  
+  const screenOptions = useTabBarScreenOptions();
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          height: 60 + Math.max(insets.bottom - 8, 0),
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen
         name="DriverHome"
         component={DriverHomeScreen}
@@ -179,31 +174,15 @@ function DriverTabs() {
   );
 }
 
+// ---------------------------------------------------------------------------
 // Tabs para Visitantes (não autenticados)
+// ---------------------------------------------------------------------------
+
 function GuestTabs() {
-  const insets = useSafeAreaInsets();
-  const { colors} = useTheme();
-  
+  const screenOptions = useTabBarScreenOptions();
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 8,
-          height: 60 + Math.max(insets.bottom - 8, 0),
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-        },
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen
         name="GuestHomeTab"
         component={HomeScreen}
@@ -452,16 +431,6 @@ function AppNavigator() {
         <Stack.Screen 
           name="TripPrice" 
           component={TripPriceScreen}
-          options={{
-            presentation: 'modal',
-            cardStyle: {
-              backgroundColor: colors.background,
-            },
-          }}
-        />
-        <Stack.Screen 
-          name="PaymentMethod" 
-          component={PaymentMethodScreen}
           options={{
             presentation: 'modal',
             cardStyle: {

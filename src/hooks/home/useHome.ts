@@ -10,10 +10,15 @@ import { HomeDestination, HomeLocation } from '@/models/home/types';
 import { TripCategoryOption } from '@/models/tripPrice/types';
 import { homeFacade } from '@/services/home/homeFacade';
 import { tripPriceFacade } from '@/services/tripPrice/tripPriceFacade';
+import { paymentMethodFacade } from '@/services/paymentMethod/paymentMethodFacade';
+import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { th } from '@/i18n/home';
+import { tpm } from '@/i18n/paymentMethod';
 
 interface UseHomeParams {
   navigation: StackNavigationProp<Record<string, object | undefined>>;
+  /** ID of the payment method selected in the inline sheet */
+  selectedPaymentMethodId: string | null;
 }
 
 const SORRISO_LOCATION: HomeLocation = { lat: -12.5458, lon: -55.7061 };
@@ -29,9 +34,10 @@ function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: 
   return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
 }
 
-export function useHome({ navigation }: UseHomeParams) {
+export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) {
   const { user } = useAuth();
   const { activeTrip, isLoading: isTripLoading } = useTrip();
+  const ensureToken = useTokenRefresh();
   const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRequestedRef = useRef(false);
@@ -247,7 +253,7 @@ export function useHome({ navigation }: UseHomeParams) {
     }
   }, [loadCategoriesForDestination, userLocation]);
 
-  const requestTrip = useCallback(() => {
+  const requestTrip = useCallback(async () => {
     if (!selectedDestination) {
       setShowHelperText(true);
       const current = inputRef.current;
@@ -269,16 +275,52 @@ export function useHome({ navigation }: UseHomeParams) {
       Alert.alert(th('chooseDestinationTitle'), th('selectCategoryFirst'));
       return;
     }
+    if (!selectedPaymentMethodId) {
+      Alert.alert(th('chooseDestinationTitle'), tpm('selectMethod'));
+      return;
+    }
+    if (!estimateId) {
+      Alert.alert(tpm('errorTitle'), tpm('estimateIdNotFound'));
+      return;
+    }
+
+    await ensureToken();
     const selectedCategory = rideCategories.find((c) => c.id === selectedCategoryId);
-    navigation.navigate('PaymentMethod', {
-      origin,
-      destination,
-      tripCategoryId: selectedCategoryId,
-      estimatedFare: selectedCategory?.finalFare ?? null,
+
+    const result = await paymentMethodFacade.createRide({
       estimateId,
-      estimateTimestamp,
+      serviceCategoryId: selectedCategoryId,
+      paymentMethodId: selectedPaymentMethodId,
     });
-  }, [estimateId, estimateTimestamp, navigation, rideCategories, selectedCategoryId, selectedDestination, userLocation]);
+
+    if (!result.success || !result.data) {
+      Alert.alert(tpm('errorTitle'), result.error?.message ?? tpm('createRideFailed'));
+      return;
+    }
+
+    const tripId = result.data.id ?? result.data.trip_id;
+    if (!tripId) {
+      Alert.alert(tpm('errorTitle'), tpm('createRideMissingId'));
+      return;
+    }
+
+    navigation.navigate('WaitingForDriver', {
+      tripId,
+      tripData: result.data,
+      userLocation: origin,
+      destination,
+      estimatedFare: selectedCategory?.finalFare ?? result.data.estimatedPrice ?? result.data.estimated_fare ?? null,
+    });
+  }, [
+    ensureToken,
+    estimateId,
+    navigation,
+    rideCategories,
+    selectedCategoryId,
+    selectedDestination,
+    selectedPaymentMethodId,
+    userLocation,
+  ]);
 
   const vm = useMemo(() => ({
     isDriver,
@@ -327,7 +369,7 @@ export function useHome({ navigation }: UseHomeParams) {
     },
     setShowResults,
     onSelectLocation,
-    requestTrip,
+    requestTrip: () => { void requestTrip(); },
     onSelectCategory: setSelectedCategoryId,
     onRecenter: requestLocationPermission,
     onMapMove: () => setHasUserMovedMap(true),

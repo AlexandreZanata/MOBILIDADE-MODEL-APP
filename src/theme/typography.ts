@@ -1,39 +1,58 @@
-const fontFamily = {
-  regular: 'Poppins-Regular',
-  semiBold: 'Poppins-SemiBold',
-  bold: 'Poppins-Bold',
-};
-
+/**
+ * Typography scale — system fonts (SF Pro on iOS · Roboto on Android).
+ * Rule: sentence case everywhere. Labels/tabs are the only uppercase exception.
+ */
 export const typography = {
-  h1: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: '700' as const,
-    fontFamily: fontFamily.bold,
-  },
-  h2: {
+  display: {
     fontSize: 22,
-    lineHeight: 30,
-    fontWeight: '600' as const,
-    fontFamily: fontFamily.semiBold,
+    fontWeight: '500' as const,
+    lineHeight: 28,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '500' as const,
+    lineHeight: 24,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: '500' as const,
+    lineHeight: 20,
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
     fontWeight: '400' as const,
-    fontFamily: fontFamily.regular,
+    lineHeight: 22,
   },
   caption: {
     fontSize: 12,
-    lineHeight: 16,
     fontWeight: '400' as const,
-    fontFamily: fontFamily.regular,
+    lineHeight: 16,
+  },
+  /** UPPERCASE labels / tabs */
+  label: {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    letterSpacing: 0.77,
+    textTransform: 'uppercase' as const,
+  },
+  micro: {
+    fontSize: 10,
+    fontWeight: '500' as const,
+    lineHeight: 14,
   },
   button: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600' as const,
-    fontFamily: fontFamily.semiBold,
+    fontSize: 15,
+    fontWeight: '500' as const,
+    letterSpacing: 0.15,
   },
-};
-
+  h1: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    lineHeight: 36,
+  },
+  h2: {
+    fontSize: 22,
+    fontWeight: '600' as const,
+    lineHeight: 30,
+  },
+} as const;

@@ -19,6 +19,7 @@ export const TripPriceScreen: React.FC<TripPriceScreenProps> = ({ navigation, ro
       categories={vm.categories}
       selectedCategoryId={vm.selectedCategoryId}
       isLoading={vm.isLoading}
+      isSubmitting={vm.isSubmitting}
       hasTooShortDistance={vm.hasTooShortDistance}
       onSelectCategory={vm.onSelectCategory}
       onConfirm={vm.onConfirm}

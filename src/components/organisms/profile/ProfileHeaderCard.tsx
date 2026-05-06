@@ -40,7 +40,7 @@ export function ProfileHeaderCard({
     avatar: {
       width: spacing.xxl + spacing.xxl,
       height: spacing.xxl + spacing.xxl,
-      borderRadius: borders.radiusPill,
+      borderRadius: borders.radiusFull,
       backgroundColor: colors.backgroundSecondary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -54,7 +54,7 @@ export function ProfileHeaderCard({
       alignItems: 'center',
       gap: spacing.xs,
       backgroundColor: colors.backgroundSecondary,
-      borderRadius: borders.radiusPill,
+      borderRadius: borders.radiusFull,
       paddingHorizontal: spacing.sm,
       paddingVertical: spacing.xs,
     },

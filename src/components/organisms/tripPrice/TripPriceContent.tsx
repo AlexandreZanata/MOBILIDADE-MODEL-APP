@@ -22,6 +22,7 @@ interface TripPriceContentProps {
   categories: TripCategoryOption[];
   selectedCategoryId: string | null;
   isLoading: boolean;
+  isSubmitting: boolean;
   hasTooShortDistance: boolean;
   onSelectCategory(categoryId: string): void;
   onConfirm(): void;
@@ -126,7 +127,8 @@ export function TripPriceContent(props: TripPriceContentProps) {
           onPress={props.onConfirm}
           variant="primary"
           fullWidth
-          disabled={!props.selectedCategoryId}
+          loading={props.isSubmitting}
+          disabled={!props.selectedCategoryId || props.isSubmitting}
         />
       </View>
     </View>

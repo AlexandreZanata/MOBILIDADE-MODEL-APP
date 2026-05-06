@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
 import { ttp } from '@/i18n/tripPrice';
+import { tpm } from '@/i18n/paymentMethod';
 import {
   TripCategoryOption,
   TripPriceLocation,
@@ -12,6 +13,8 @@ import {
   TripPriceScreenRoute,
 } from '@/models/tripPrice/types';
 import { tripPriceFacade } from '@/services/tripPrice/tripPriceFacade';
+import { paymentMethodFacade } from '@/services/paymentMethod/paymentMethodFacade';
+import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 
 const CACHE_KEYS = {
   categories: '@vamu:trip_price_categories',
@@ -66,9 +69,11 @@ async function saveCachedCategories(categories: TripCategoryOption[]): Promise<v
 export function useTripPrice({ navigation, route }: UseTripPriceParams) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const ensureToken = useTokenRefresh();
   const [categories, setCategories] = useState<TripCategoryOption[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [estimateId, setEstimateId] = useState<string | null>(null);
   const [estimateTimestamp, setEstimateTimestamp] = useState<number | null>(null);
 
@@ -153,22 +158,56 @@ export function useTripPrice({ navigation, route }: UseTripPriceParams) {
     return () => clearInterval(interval);
   }, [destination, estimateTimestamp, loadCategoriesFromApi, origin]);
 
-  const onConfirm = () => {
+  const onConfirm = useCallback(async () => {
     if (!selectedCategoryId || !origin || !destination) {
       Alert.alert(ttp('attentionTitle'), ttp('noCategorySelected'));
       return;
     }
+    if (!estimateId) {
+      Alert.alert(tpm('errorTitle'), tpm('estimateIdNotFound'));
+      return;
+    }
 
-    const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
-    navigation.navigate('PaymentMethod', {
-      origin,
-      destination,
-      tripCategoryId: selectedCategoryId,
-      estimatedFare: selectedCategory?.finalFare ?? null,
-      estimateId,
-      estimateTimestamp,
-    });
-  };
+    // Load first available payment method from API
+    const methodsResult = await paymentMethodFacade.getPaymentMethods();
+    if (!methodsResult.success || !methodsResult.data?.length) {
+      Alert.alert(tpm('errorTitle'), tpm('loadMethodsFailed'));
+      return;
+    }
+    const paymentMethodId = methodsResult.data[0].id;
+
+    await ensureToken();
+    setIsSubmitting(true);
+    try {
+      const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+      const result = await paymentMethodFacade.createRide({
+        estimateId,
+        serviceCategoryId: selectedCategoryId,
+        paymentMethodId,
+      });
+
+      if (!result.success || !result.data) {
+        Alert.alert(tpm('errorTitle'), result.error?.message ?? tpm('createRideFailed'));
+        return;
+      }
+
+      const tripId = result.data.id ?? result.data.trip_id;
+      if (!tripId) {
+        Alert.alert(tpm('errorTitle'), tpm('createRideMissingId'));
+        return;
+      }
+
+      navigation.navigate('WaitingForDriver', {
+        tripId,
+        tripData: result.data,
+        userLocation: origin,
+        destination,
+        estimatedFare: selectedCategory?.finalFare ?? result.data.estimatedPrice ?? result.data.estimated_fare ?? null,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [categories, destination, ensureToken, estimateId, navigation, origin, selectedCategoryId]);
 
   return {
     colors,
@@ -176,8 +215,9 @@ export function useTripPrice({ navigation, route }: UseTripPriceParams) {
     categories,
     selectedCategoryId,
     isLoading,
+    isSubmitting,
     hasTooShortDistance,
     onSelectCategory: setSelectedCategoryId,
-    onConfirm,
+    onConfirm: () => { void onConfirm(); },
   };
 }

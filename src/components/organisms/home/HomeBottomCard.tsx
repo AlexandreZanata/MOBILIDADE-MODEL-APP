@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -8,19 +8,23 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Button from '@/components/atoms/Button';
-import { Card } from '@/components/atoms/Card';
 import { useTheme } from '@/context/ThemeContext';
-import { spacing } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 import { HomeDestination } from '@/models/home/types';
 import { TripCategoryOption } from '@/models/tripPrice/types';
+import { UiPaymentMethod } from '@/models/payment/types';
+import { RideTypeChip } from '@/components/molecules/home/RideTypeChip';
+import { PaymentRow } from '@/components/molecules/home/PaymentRow';
+import { PaymentSheet } from '@/components/molecules/home/PaymentSheet';
+import { usePaymentSheet } from '@/hooks/home/usePaymentSheet';
+import { formatDuration, formatPrice } from '@/utils/formatters';
 import { th } from '@/i18n/home';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface Props {
+export interface HomeBottomCardProps {
   destination: HomeDestination | null;
   isMinimized: boolean;
   isLoadingCategories: boolean;
@@ -31,104 +35,19 @@ interface Props {
   onSelectCategory: (id: string) => void;
   onRequestTrip: () => void;
   onLayoutHeight: (height: number) => void;
+  /** Called whenever the user selects a different payment method */
+  onPaymentMethodChange: (methodId: string) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function formatPrice(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-}
-
-function formatDuration(seconds: number): string {
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} ${th('etaUnit')}`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}min` : `${h}h`;
-}
-
-// ---------------------------------------------------------------------------
-// RideTypeCard — single carousel item
-// ---------------------------------------------------------------------------
-
-interface RideTypeCardProps {
-  item: TripCategoryOption;
-  isSelected: boolean;
-  onPress: (id: string) => void;
-}
-
-const RideTypeCard = memo(({ item, isSelected, onPress }: RideTypeCardProps) => {
-  const { colors } = useTheme();
-
-  const styles = StyleSheet.create({
-    card: {
-      borderWidth: isSelected ? 1.5 : 1,
-      borderColor: isSelected ? colors.primary : colors.border,
-      borderRadius: 14,
-      paddingVertical: spacing.sm + 2,
-      paddingHorizontal: spacing.md,
-      alignItems: 'flex-start',
-      minWidth: 96,
-      backgroundColor: isSelected ? hexToRgba(colors.primary, 0.07) : colors.backgroundSecondary,
-      marginRight: spacing.sm,
-      gap: 2,
-    },
-    name: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: isSelected ? colors.primary : colors.textPrimary,
-      fontFamily: 'Poppins-Bold',
-      letterSpacing: 0.1,
-    },
-    price: {
-      fontSize: 16,
-      fontWeight: '800',
-      color: '#F97316',
-      fontFamily: 'Poppins-Bold',
-      marginTop: 2,
-    },
-    eta: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-      marginTop: 1,
-    },
-  });
-
-  return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => onPress(item.id)}
-      activeOpacity={0.75}
-      accessibilityRole="radio"
-      accessibilityState={{ selected: isSelected }}
-      accessibilityLabel={`${item.name}, ${formatPrice(item.finalFare)}`}
-    >
-      {/* Category name — top hierarchy */}
-      <Text style={styles.name} numberOfLines={1}>
-        {item.name}
-      </Text>
-      {/* Price — prominent, primary color when selected */}
-      <Text style={styles.price}>{formatPrice(item.finalFare)}</Text>
-      {/* ETA — subtle, lowest hierarchy */}
-      <Text style={styles.eta}>{formatDuration(item.durationSeconds)}</Text>
-    </TouchableOpacity>
-  );
-});
 
 // ---------------------------------------------------------------------------
 // HomeBottomCard
 // ---------------------------------------------------------------------------
 
+/**
+ * Persistent bottom sheet for ride confirmation.
+ * Orchestrates: destination row, ride-type chip carousel, price summary,
+ * payment selector row, and the primary CTA.
+ */
 export const HomeBottomCard = memo(function HomeBottomCard({
   destination,
   isMinimized,
@@ -140,12 +59,20 @@ export const HomeBottomCard = memo(function HomeBottomCard({
   onSelectCategory,
   onRequestTrip,
   onLayoutHeight,
-}: Props) {
-  const { colors } = useTheme();
+  onPaymentMethodChange,
+}: HomeBottomCardProps) {
+  const { colors, isDark } = useTheme();
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
+  const { selectedMethod, selectMethod } = usePaymentSheet();
 
-  const renderItem = useCallback(
+  const handleSelectMethod = useCallback((method: UiPaymentMethod) => {
+    selectMethod(method.id);
+    onPaymentMethodChange(method.id);
+  }, [onPaymentMethodChange, selectMethod]);
+
+  const renderChip = useCallback(
     ({ item }: { item: TripCategoryOption }) => (
-      <RideTypeCard
+      <RideTypeChip
         item={item}
         isSelected={selectedCategoryId === item.id}
         onPress={onSelectCategory}
@@ -156,124 +83,34 @@ export const HomeBottomCard = memo(function HomeBottomCard({
 
   const keyExtractor = useCallback((item: TripCategoryOption) => item.id, []);
 
-  const styles = StyleSheet.create({
-    card: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      borderRadius: 0,
-      // shadow only on top edge
-      shadowOffset: { width: 0, height: -3 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      elevation: 12,
-    },
-    handle: {
-      width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.border,
-      alignSelf: 'center',
-      marginBottom: spacing.sm,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: spacing.sm,
-    },
-    sectionLabel: {
-      fontSize: 10,
-      fontWeight: '600',
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-SemiBold',
-      textTransform: 'uppercase',
-      letterSpacing: 0.8,
-    },
-    destRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      marginBottom: spacing.sm,
-    },
-    destIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: hexToRgba(colors.primary, 0.08),
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    destInfo: { flex: 1 },
-    destName: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: colors.textPrimary,
-      fontFamily: 'Poppins-SemiBold',
-    },
-    destAddr: {
-      fontSize: 11,
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-      marginTop: 1,
-    },
-    etaBlock: { alignItems: 'flex-end' },
-    etaVal: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: colors.textPrimary,
-      fontFamily: 'Poppins-SemiBold',
-    },
-    etaUnit: {
-      fontSize: 10,
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-    },
-    divider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-      marginBottom: spacing.sm,
-    },
-    carouselContainer: {
-      marginBottom: spacing.sm,
-      minHeight: 80,
-      justifyContent: 'center',
-    },
-    loadingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      paddingVertical: spacing.sm,
-    },
-    loadingText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-    },
-    emptyText: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      fontFamily: 'Poppins-Regular',
-      paddingVertical: spacing.sm,
-    },
-  });
+  const sheetStyle = StyleSheet.flatten([
+    styles.sheet,
+    { backgroundColor: colors.card },
+    isDark
+      ? { borderTopWidth: 0.5, borderTopColor: colors.border }
+      : shadows.large,
+  ]);
 
-  const showCarousel = !!destination;
+  const ctaDisabled = !!destination && (isLoadingCategories || !selectedCategoryId);
+
+  const selectedCategory = rideCategories.find((c) => c.id === selectedCategoryId);
 
   return (
-    <Card
-      style={styles.card}
+    <View
+      style={sheetStyle}
       onLayout={(e) => onLayoutHeight(e.nativeEvent.layout.height)}
     >
       {/* Drag handle */}
-      <View style={styles.handle} />
+      <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-      {/* Header row: label + collapse toggle */}
+      {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionLabel}>{th('rideTypesSectionLabel')}</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textHint }]}>
+          {th('newRideTitle')}
+        </Text>
         <TouchableOpacity
           onPress={onToggleMinimized}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel={isMinimized ? 'Expandir' : 'Minimizar'}
         >
@@ -287,70 +124,279 @@ export const HomeBottomCard = memo(function HomeBottomCard({
 
       {!isMinimized && (
         <>
-          {/* Destination row */}
           {destination ? (
-            <>
-              <View style={styles.destRow}>
-                <View style={styles.destIcon}>
-                  <Ionicons name="location" size={18} color={colors.primary} />
-                </View>
-                <View style={styles.destInfo}>
-                  <Text style={styles.destName} numberOfLines={1}>
-                    {destination.name}
-                  </Text>
-                  <Text style={styles.destAddr} numberOfLines={1}>
-                    {destination.displayName}
-                  </Text>
-                </View>
-                <View style={styles.etaBlock}>
-                  {selectedCategoryDuration != null ? (
-                    <>
-                      <Text style={styles.etaVal}>
-                        {Math.round(selectedCategoryDuration / 60)}
-                      </Text>
-                      <Text style={styles.etaUnit}>{th('etaUnit')}</Text>
-                    </>
-                  ) : null}
-                </View>
-              </View>
-
-              <View style={styles.divider} />
-
-              {/* Ride-type carousel */}
-              <View style={styles.carouselContainer}>
-                {isLoadingCategories ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={styles.loadingText}>{th('loadingCategories')}</Text>
-                  </View>
-                ) : rideCategories.length > 0 ? (
-                  <FlatList
-                    data={rideCategories}
-                    renderItem={renderItem}
-                    keyExtractor={keyExtractor}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 2 }}
-                  />
-                ) : (
-                  <Text style={styles.emptyText}>{th('noCategoriesAvailable')}</Text>
-                )}
-              </View>
-            </>
+            <DestinationContent
+              destination={destination}
+              isLoadingCategories={isLoadingCategories}
+              rideCategories={rideCategories}
+              selectedCategoryId={selectedCategoryId}
+              selectedCategoryDuration={selectedCategoryDuration}
+              selectedCategory={selectedCategory ?? null}
+              selectedMethod={selectedMethod}
+              renderChip={renderChip}
+              keyExtractor={keyExtractor}
+              onOpenPaymentSheet={() => setPaymentSheetVisible(true)}
+            />
           ) : (
-            <Text style={styles.emptyText}>{th('selectDestination')}</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {th('selectDestination')}
+            </Text>
           )}
 
-          {/* CTA — full width, no coupon button */}
-          <Button
-            title={th('requestTripButton')}
+          {/* Primary CTA */}
+          <TouchableOpacity
+            style={[
+              styles.cta,
+              { backgroundColor: colors.primary },
+              ctaDisabled && styles.ctaDisabled,
+            ]}
             onPress={onRequestTrip}
-            variant="primary"
-            fullWidth
-            disabled={showCarousel && (isLoadingCategories || !selectedCategoryId)}
-          />
+            disabled={ctaDisabled}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={th('requestTripButton')}
+            accessibilityState={{ disabled: ctaDisabled }}
+          >
+            <Text style={[styles.ctaText, { color: colors.card }]}>
+              {th('requestTripButton')}
+            </Text>
+          </TouchableOpacity>
         </>
       )}
-    </Card>
+
+      <PaymentSheet
+        visible={paymentSheetVisible}
+        selectedId={selectedMethod?.id ?? null}
+        onSelect={handleSelectMethod}
+        onClose={() => setPaymentSheetVisible(false)}
+      />
+    </View>
   );
+});
+
+// ---------------------------------------------------------------------------
+// DestinationContent — extracted to keep HomeBottomCard under 200 lines
+// ---------------------------------------------------------------------------
+
+interface DestinationContentProps {
+  destination: HomeDestination;
+  isLoadingCategories: boolean;
+  rideCategories: TripCategoryOption[];
+  selectedCategoryId: string | null;
+  selectedCategoryDuration: number | null;
+  selectedCategory: TripCategoryOption | null;
+  selectedMethod: UiPaymentMethod | null;
+  renderChip: ({ item }: { item: TripCategoryOption }) => React.ReactElement;
+  keyExtractor: (item: TripCategoryOption) => string;
+  onOpenPaymentSheet: () => void;
+}
+
+const DestinationContent = memo(function DestinationContent({
+  destination,
+  isLoadingCategories,
+  rideCategories,
+  selectedCategoryId,
+  selectedCategoryDuration,
+  selectedCategory,
+  selectedMethod,
+  renderChip,
+  keyExtractor,
+  onOpenPaymentSheet,
+}: DestinationContentProps) {
+  const { colors } = useTheme();
+
+  return (
+    <>
+      {/* Destination row */}
+      <View style={styles.destRow}>
+        <View style={[styles.destIconBox, { backgroundColor: colors.accentSoft }]}>
+          <Ionicons name="location" size={18} color={colors.accent} />
+        </View>
+        <View style={styles.destInfo}>
+          <Text style={[styles.destName, { color: colors.textPrimary }]} numberOfLines={1}>
+            {destination.name}
+          </Text>
+          <Text style={[styles.destAddr, { color: colors.textSecondary }]} numberOfLines={1}>
+            {destination.displayName}
+          </Text>
+        </View>
+        {selectedCategoryDuration != null && (
+          <View style={styles.etaBlock}>
+            <Text style={[styles.etaVal, { color: colors.textPrimary }]}>
+              {Math.round(selectedCategoryDuration / 60)}
+            </Text>
+            <Text style={[styles.etaUnit, { color: colors.textSecondary }]}>
+              {th('etaUnit')}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {/* Ride-type chips */}
+      <View style={styles.chipsContainer}>
+        {isLoadingCategories ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              {th('loadingCategories')}
+            </Text>
+          </View>
+        ) : rideCategories.length > 0 ? (
+          <FlatList
+            data={rideCategories}
+            renderItem={renderChip}
+            keyExtractor={keyExtractor}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsList}
+          />
+        ) : (
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            {th('noCategoriesAvailable')}
+          </Text>
+        )}
+      </View>
+
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {/* Price row */}
+      {selectedCategory != null && (
+        <View style={styles.priceRow}>
+          <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
+            {selectedCategory.name}
+            {selectedCategoryDuration != null
+              ? ` · ${formatDuration(selectedCategoryDuration)}`
+              : ''}
+          </Text>
+          <Text style={[styles.priceValue, { color: colors.textPrimary }]}>
+            {formatPrice(selectedCategory.finalFare)}
+          </Text>
+        </View>
+      )}
+
+      {/* Payment row */}
+      {selectedMethod != null && (
+        <PaymentRow
+          method={selectedMethod}
+          onPress={onOpenPaymentSheet}
+        />
+      )}
+    </>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const styles = StyleSheet.create({
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: borders.radiusXL,
+    borderTopRightRadius: borders.radiusXL,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xxl,
+    paddingTop: spacing.md,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  sectionLabel: {
+    ...typography.label,
+  },
+  destRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  destIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: borders.radiusLarge,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  destInfo: { flex: 1 },
+  destName: {
+    ...typography.body,
+    fontWeight: '600',
+  },
+  destAddr: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  etaBlock: { alignItems: 'flex-end' },
+  etaVal: {
+    fontSize: 20,
+    fontWeight: '500',
+    lineHeight: 24,
+  },
+  etaUnit: {
+    ...typography.micro,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginBottom: spacing.md,
+  },
+  chipsContainer: {
+    marginBottom: spacing.md,
+  },
+  chipsList: {
+    paddingBottom: 2,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  loadingText: {
+    ...typography.caption,
+  },
+  emptyText: {
+    ...typography.body,
+    paddingVertical: spacing.sm,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  priceLabel: {
+    ...typography.caption,
+  },
+  priceValue: {
+    ...typography.subtitle,
+    fontWeight: '600',
+  },
+  cta: {
+    height: 52,
+    borderRadius: borders.radiusMedium,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+  },
+  ctaDisabled: {
+    opacity: 0.45,
+  },
+  ctaText: {
+    ...typography.button,
+  },
 });
