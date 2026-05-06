@@ -6,7 +6,7 @@ import { DriverVehiclesList } from '@/components/organisms/driverVehicles/Driver
 import { useTheme } from '@/context/ThemeContext';
 import { tdv } from '@/i18n/driverVehicles';
 import { DriverVehicle } from '@/models/driverVehicles/types';
-import { shadows, spacing, typography } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 
 interface DriverVehiclesContentProps {
   insets: EdgeInsets;
@@ -42,8 +42,8 @@ export function DriverVehiclesContent({
       bottom: spacing.sm,
       left: spacing.md,
       right: spacing.md,
-      backgroundColor: colors.primary,
-      borderRadius: 16,
+      backgroundColor: colors.accent,
+      borderRadius: borders.radiusLarge,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,
       flexDirection: 'row',
@@ -54,7 +54,7 @@ export function DriverVehiclesContent({
       shadowColor: colors.shadow,
       zIndex: 10,
     },
-    addButtonText: { ...typography.body, fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    addButtonText: { ...typography.body, fontSize: 16, fontWeight: '700', color: colors.onAccent },
   });
 
   return (
@@ -72,7 +72,7 @@ export function DriverVehiclesContent({
         />
       </ScrollView>
       <TouchableOpacity style={styles.addButton} onPress={onAddVehicle}>
-        <Ionicons name="add" size={24} color="#FFFFFF" />
+        <Ionicons name="add" size={24} color={colors.onAccent} />
         <Text style={styles.addButtonText}>{tdv('addVehicle')}</Text>
       </TouchableOpacity>
     </View>

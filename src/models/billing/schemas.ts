@@ -1,10 +1,28 @@
 /**
  * @file Billing zod schemas.
  * @description Runtime validation for external payloads used by billing feature.
+ *
+ * The GET /api/v1/driver/billing/status response shape differs from the domain
+ * model — this file handles the mapping:
+ *
+ *   API field        → Domain field
+ *   ─────────────────────────────────
+ *   totalDebt        → totalPending
+ *   blockReason      → blockedReason
+ *   pendingCycles[]  → pendingCycles (+ currentCycle = first item)
+ *   currentPix       → currentPix
+ *   driverName       → driverName (optional in API, defaults to '')
  */
 
 import { z } from 'zod';
-import { BillingCyclesPage, BillingCycleStatus, DriverBillingStatus, PixQrCode } from '@/models/billing/types';
+import {
+  BillingCyclesPage,
+  BillingCycleStatus,
+  DriverBillingStatus,
+  PixQrCode,
+} from '@/models/billing/types';
+
+// ─── Shared sub-schemas ───────────────────────────────────────────────────────
 
 const billingCycleStatusSchema = z.enum([
   'PENDING',
@@ -21,7 +39,7 @@ const billingCycleStatusSchema = z.enum([
 export const billingCycleSchema = z.object({
   id: z.string(),
   driverId: z.string(),
-  driverName: z.string(),
+  driverName: z.string().default(''),
   periodStart: z.string(),
   periodEnd: z.string(),
   rideCount: z.number(),
@@ -30,23 +48,12 @@ export const billingCycleSchema = z.object({
   paidAmount: z.number(),
   remainingAmount: z.number(),
   status: billingCycleStatusSchema,
-  pixGeneratedAt: z.string().nullable(),
-  pixExpiresAt: z.string().nullable(),
-  gracePeriodEndsAt: z.string().nullable(),
-  paidAt: z.string().nullable(),
-  blockedAt: z.string().nullable(),
+  pixGeneratedAt: z.string().nullable().default(null),
+  pixExpiresAt: z.string().nullable().default(null),
+  gracePeriodEndsAt: z.string().nullable().default(null),
+  paidAt: z.string().nullable().default(null),
+  blockedAt: z.string().nullable().default(null),
   createdAt: z.string(),
-});
-
-export const driverBillingStatusSchema = z.object({
-  driverId: z.string(),
-  driverName: z.string(),
-  totalPending: z.number(),
-  totalPendingRides: z.number(),
-  currentCycle: billingCycleSchema.nullable(),
-  isBlocked: z.boolean(),
-  blockedReason: z.string().optional(),
-  blockedAt: z.string().optional(),
 });
 
 export const pixQrCodeSchema = z.object({
@@ -61,6 +68,35 @@ export const pixQrCodeSchema = z.object({
   generatedAt: z.string(),
 });
 
+// ─── Billing status — raw API shape ──────────────────────────────────────────
+
+/**
+ * Zod schema for the raw GET /api/v1/driver/billing/status response.
+ * Field names match the API exactly; mapping to domain types happens in
+ * `parseBillingStatus()` below.
+ */
+const driverBillingStatusRawSchema = z.object({
+  driverId: z.string(),
+  // driverName is absent in some API versions
+  driverName: z.string().optional().default(''),
+  isBlocked: z.boolean(),
+  blockedAt: z.string().optional(),
+  // API uses blockReason (not blockedReason)
+  blockReason: z.string().optional(),
+  // API uses totalDebt (not totalPending)
+  totalDebt: z.number().optional().default(0),
+  // Kept for backwards compat if the API ever returns totalPending directly
+  totalPending: z.number().optional(),
+  totalPendingRides: z.number().default(0),
+  pendingCyclesCount: z.number().optional().default(0),
+  nextDueDate: z.string().nullable().optional(),
+  pendingCycles: z.array(billingCycleSchema).optional().default([]),
+  currentPix: pixQrCodeSchema.nullable().optional(),
+  updatedAt: z.string().optional(),
+});
+
+// ─── Billing cycles response ──────────────────────────────────────────────────
+
 const billingCyclesPageSchema = z.object({
   items: z.array(billingCycleSchema),
   nextCursor: z.string().optional(),
@@ -72,8 +108,35 @@ export const driverBillingCyclesResponseSchema = z.union([
   billingCyclesPageSchema,
 ]);
 
+// ─── Parse functions ──────────────────────────────────────────────────────────
+
+/**
+ * Parses and normalises the billing status API response into the domain model.
+ * Maps `totalDebt` → `totalPending` and `blockReason` → `blockedReason`.
+ */
 export function parseBillingStatus(payload: unknown): DriverBillingStatus {
-  return driverBillingStatusSchema.parse(payload);
+  const raw = driverBillingStatusRawSchema.parse(payload);
+
+  const pendingCycles = raw.pendingCycles ?? [];
+  const currentCycle = pendingCycles.length > 0 ? pendingCycles[0] : null;
+
+  return {
+    driverId: raw.driverId,
+    driverName: raw.driverName ?? '',
+    // Prefer explicit totalPending if present, otherwise fall back to totalDebt
+    totalPending: raw.totalPending ?? raw.totalDebt ?? 0,
+    totalPendingRides: raw.totalPendingRides,
+    pendingCyclesCount: raw.pendingCyclesCount ?? pendingCycles.length,
+    nextDueDate: raw.nextDueDate ?? null,
+    pendingCycles,
+    currentPix: raw.currentPix ?? null,
+    currentCycle,
+    isBlocked: raw.isBlocked,
+    // Normalise blockReason → blockedReason
+    blockedReason: raw.blockReason ?? undefined,
+    blockedAt: raw.blockedAt,
+    updatedAt: raw.updatedAt,
+  };
 }
 
 export function parsePixQrCode(payload: unknown): PixQrCode {

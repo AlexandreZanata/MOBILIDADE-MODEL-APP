@@ -6,7 +6,7 @@ import { DriverVehicleStatusBadge } from '@/components/molecules/driverVehicles/
 import { useTheme } from '@/context/ThemeContext';
 import { tdv } from '@/i18n/driverVehicles';
 import { DriverVehicle } from '@/models/driverVehicles/types';
-import { spacing, typography } from '@/theme';
+import { borders, spacing, typography } from '@/theme';
 
 interface DriverVehicleCardProps {
   vehicle: DriverVehicle;
@@ -39,8 +39,8 @@ export function DriverVehicleCard({ vehicle, isDocumentPending, isUploading, onU
     value: { ...typography.body, fontSize: 14, fontWeight: '500', color: colors.textPrimary, flex: 1 },
     uploadButton: {
       marginTop: spacing.md,
-      backgroundColor: colors.primary,
-      borderRadius: 12,
+      backgroundColor: colors.accent,
+      borderRadius: borders.radiusMedium,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       flexDirection: 'row',
@@ -48,7 +48,7 @@ export function DriverVehicleCard({ vehicle, isDocumentPending, isUploading, onU
       justifyContent: 'center',
       gap: spacing.xs,
     },
-    uploadButtonText: { ...typography.body, fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
+    uploadButtonText: { ...typography.body, fontSize: 14, fontWeight: '600', color: colors.onAccent },
   });
 
   return (
@@ -81,10 +81,10 @@ export function DriverVehicleCard({ vehicle, isDocumentPending, isUploading, onU
           activeOpacity={0.8}
         >
           {isUploading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={colors.onAccent} />
           ) : (
             <>
-              <Ionicons name="document-attach-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="document-attach-outline" size={18} color={colors.onAccent} />
               <Text style={styles.uploadButtonText}>{tdv('uploadCrlv')}</Text>
             </>
           )}

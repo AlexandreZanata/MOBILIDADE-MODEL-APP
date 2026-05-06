@@ -94,7 +94,6 @@ export function ProfileHeaderCard({
       ...typography.body,
       color: colors.profileHeroMuted,
       textAlign: 'center',
-      maxWidth: '100%',
     },
     badge: {
       flexDirection: 'row',

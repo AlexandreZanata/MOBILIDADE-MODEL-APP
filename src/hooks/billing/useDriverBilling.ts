@@ -19,6 +19,16 @@ function resolveErrorMessage(error: ServiceError | undefined, fallback: string):
   return error.code === 'REQUEST_FAILED' ? error.message : fallback;
 }
 
+/**
+ * Manages all driver billing state and actions.
+ *
+ * On mount / screen focus:
+ *  1. Loads billing status (total debt, pending cycles, block state, currentPix)
+ *  2. Loads billing cycles list (paginated)
+ *
+ * If the status response already contains a `currentPix`, it is surfaced
+ * immediately so the driver can copy/pay without generating a new QR code.
+ */
 export function useDriverBilling() {
   const ensureToken = useTokenRefresh();
   const { user } = useAuth();
@@ -34,6 +44,8 @@ export function useDriverBilling() {
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+
+  // ─── Derived totals ─────────────────────────────────────────────────────────
 
   const calculatedTotalPending = useMemo(
     () =>
@@ -53,6 +65,8 @@ export function useDriverBilling() {
     return calculatedTotalPending;
   }, [billingStatus?.totalPending, calculatedTotalPending]);
 
+  // ─── Data loading ────────────────────────────────────────────────────────────
+
   const loadBillingStatus = useCallback(async () => {
     if (!canAccessBilling) {
       setIsLoading(false);
@@ -65,6 +79,10 @@ export function useDriverBilling() {
       const response = await driverBillingService.getBillingStatus();
       if (response.success && response.data) {
         setBillingStatus(response.data);
+        // If the API already returned an active PIX, surface it immediately
+        if (response.data.currentPix) {
+          setPixData(response.data.currentPix);
+        }
       } else {
         Alert.alert(tb('errorTitle'), resolveErrorMessage(response.error, tb('statusLoadError')));
       }
@@ -77,14 +95,10 @@ export function useDriverBilling() {
 
   const loadCycles = useCallback(
     async (append = false) => {
-      if (!canAccessBilling) {
-        return;
-      }
+      if (!canAccessBilling) return;
 
       try {
-        if (!append) {
-          setIsLoadingCycles(true);
-        }
+        if (!append) setIsLoadingCycles(true);
         await ensureToken();
         const response = await driverBillingService.getBillingCycles({
           cursor: append ? nextCursor : undefined,
@@ -115,6 +129,8 @@ export function useDriverBilling() {
     [canAccessBilling, ensureToken, nextCursor]
   );
 
+  // ─── PIX generation ──────────────────────────────────────────────────────────
+
   const handleGeneratePix = useCallback(
     async (cycle: BillingCycle) => {
       if (cycle.remainingAmount <= 0) {
@@ -125,7 +141,10 @@ export function useDriverBilling() {
       try {
         setIsGeneratingPix(true);
         await ensureToken();
-        const response = await driverBillingService.generateCyclePix(cycle.id, buildIdempotencyKey(cycle.id));
+        const response = await driverBillingService.generateCyclePix(
+          cycle.id,
+          buildIdempotencyKey(cycle.id)
+        );
         if (response.success && response.data) {
           setPixData(response.data);
           setSelectedCycle(cycle);
@@ -178,6 +197,16 @@ export function useDriverBilling() {
     }
   }, [ensureToken, totalPending]);
 
+  // ─── PIX modal actions ───────────────────────────────────────────────────────
+
+  /**
+   * Shows the PIX modal for an already-generated PIX (e.g. from status response).
+   */
+  const handleShowCurrentPix = useCallback(() => {
+    if (!pixData) return;
+    setShowPixModal(true);
+  }, [pixData]);
+
   const handleCopyPixCode = useCallback(() => {
     if (!pixData) return;
     Clipboard.setString(pixData.copyPaste || pixData.qrCode);
@@ -186,10 +215,12 @@ export function useDriverBilling() {
 
   const closePixModal = useCallback(() => setShowPixModal(false), []);
 
+  // ─── Focus effect ────────────────────────────────────────────────────────────
+
   useFocusEffect(
     useCallback(() => {
-      loadBillingStatus();
-      loadCycles(false);
+      void loadBillingStatus();
+      void loadCycles(false);
     }, [loadBillingStatus, loadCycles])
   );
 
@@ -208,6 +239,7 @@ export function useDriverBilling() {
     loadCycles,
     handleGeneratePix,
     handleGenerateDebtPix,
+    handleShowCurrentPix,
     handleCopyPixCode,
     closePixModal,
   };

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -43,121 +44,126 @@ export const DriverBillingScreen: React.FC<DriverBillingScreenProps> = ({ naviga
     loadCycles,
     handleGeneratePix,
     handleGenerateDebtPix,
+    handleShowCurrentPix,
     handleCopyPixCode,
     closePixModal,
   } = useDriverBilling();
 
   const formatCurrency = useMemo(
-    () => (value: number): string =>
-      new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      }).format(value),
+    () =>
+      (value: number): string =>
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
     []
   );
 
   const formatDate = useMemo(
-    () => (dateString: string): string =>
-      new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      }).format(new Date(dateString)),
+    () =>
+      (dateString: string): string =>
+        new Intl.DateTimeFormat('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date(dateString)),
     []
   );
 
   const formatDateShort = useMemo(
-    () => (dateString: string): string =>
-      new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      }).format(new Date(dateString)),
+    () =>
+      (dateString: string): string =>
+        new Intl.DateTimeFormat('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }).format(new Date(dateString)),
     []
   );
+
+  const HEADER_HEIGHT = 56;
+  const topOffset = Math.max(insets.top, spacing.lg);
 
   const styles = useMemo(
     () =>
       StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    // Faixa fixa superior (barra de notificação)
-    topSafeArea: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      height: insets.top,
-      backgroundColor: colors.background,
-      zIndex: 10,
-    },
-    // Faixa fixa inferior (barra de navegação)
-    bottomSafeArea: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      height: insets.bottom,
-      backgroundColor: colors.background,
-      zIndex: 10,
-    },
-    scrollContent: {
-      padding: spacing.md,
-      paddingTop: Math.max(insets.top, spacing.lg) + spacing.md + 56,
-      paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.xl,
-    },
-    backButton: {
-      position: 'absolute',
-      top: Math.max(insets.top, spacing.lg) + spacing.sm,
-      left: spacing.md,
-      width: spacing.lg + spacing.md,
-      height: spacing.lg + spacing.md,
-      borderRadius: spacing.md + spacing.sm,
-      backgroundColor: colors.card,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...shadows.small,
-      shadowColor: colors.shadow,
-      borderWidth: 1,
-      borderColor: colors.border,
-      zIndex: 20,
-    },
-    header: {
-      marginBottom: spacing.lg,
-    },
-    headerTitle: {
-      ...typography.h1,
-      fontWeight: '700',
-      color: colors.textPrimary,
-      marginBottom: spacing.xs,
-    },
-    headerSubtitle: {
-      ...typography.body,
-      color: colors.textSecondary,
-    },
-    sectionTitle: {
-      ...typography.h2,
-      fontWeight: '700',
-      color: colors.textPrimary,
-      marginBottom: spacing.md,
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: spacing.xl,
-    },
-      noAccessText: {
-        ...typography.body,
-        color: colors.textSecondary,
-      },
-  }),
-    [colors, insets.bottom, insets.top]
+        container: {
+          flex: 1,
+          backgroundColor: colors.background,
+        },
+        // Status-bar background fill
+        topSafeArea: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top,
+          backgroundColor: colors.background,
+          zIndex: 10,
+        },
+        backButton: {
+          position: 'absolute',
+          top: topOffset + spacing.sm,
+          left: spacing.md,
+          width: HEADER_HEIGHT,
+          height: HEADER_HEIGHT,
+          borderRadius: HEADER_HEIGHT / 2,
+          backgroundColor: colors.card,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...shadows.small,
+          shadowColor: colors.shadow,
+          borderWidth: 1,
+          borderColor: colors.border,
+          zIndex: 20,
+        },
+        // Scrollable area starts below the back button
+        scrollView: {
+          flex: 1,
+          marginTop: topOffset + spacing.sm + HEADER_HEIGHT + spacing.sm,
+        },
+        scrollContent: {
+          paddingHorizontal: spacing.md,
+          paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.xl,
+        },
+        header: {
+          marginBottom: spacing.lg,
+        },
+        headerTitle: {
+          ...typography.h1,
+          fontWeight: '700',
+          color: colors.textPrimary,
+          marginBottom: spacing.xs,
+        },
+        headerSubtitle: {
+          ...typography.body,
+          color: colors.textSecondary,
+        },
+        sectionTitle: {
+          ...typography.h2,
+          fontWeight: '700',
+          color: colors.textPrimary,
+          marginBottom: spacing.md,
+        },
+        loadingContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: spacing.xl,
+        },
+        noAccessText: {
+          ...typography.body,
+          color: colors.textSecondary,
+        },
+        // The FlatList needs a fixed height so it can scroll independently
+        listWrapper: {
+          flex: 1,
+          minHeight: 300,
+        },
+      }),
+    [colors, insets.bottom, insets.top, topOffset]
   );
+
+  // ─── Loading state ────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -180,24 +186,35 @@ export const DriverBillingScreen: React.FC<DriverBillingScreenProps> = ({ naviga
     );
   }
 
+  // ─── Main content ─────────────────────────────────────────────────────────
+
   return (
     <View style={styles.container}>
-      {/* Faixa fixa superior (barra de notificação) */}
+      {/* Status-bar background fill */}
       <View style={styles.topSafeArea} />
 
-      {/* Faixa fixa inferior (barra de navegação) */}
-      <View style={styles.bottomSafeArea} />
-
-      {/* Botão de Voltar */}
+      {/* Back button — floats above scroll content */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={tb('backButton')}
       >
         <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
       </TouchableOpacity>
 
-      <View style={[styles.container, styles.scrollContent]}>
+      {/*
+       * ScrollView wraps the header + summary card + section title.
+       * BillingCyclesList (FlatList) is rendered inside with nestedScrollEnabled
+       * so it can grow to its full content height within the outer scroll.
+       */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{tb('title')}</Text>
           <Text style={styles.headerSubtitle}>{tb('subtitle')}</Text>
@@ -211,23 +228,27 @@ export const DriverBillingScreen: React.FC<DriverBillingScreenProps> = ({ naviga
             formatCurrency={formatCurrency}
             formatDateShort={formatDateShort}
             onGenerateDebtPix={handleGenerateDebtPix}
+            onShowCurrentPix={handleShowCurrentPix}
           />
         )}
 
         <Text style={styles.sectionTitle}>{tb('historyTitle')}</Text>
 
-        <BillingCyclesList
-          cycles={cycles}
-          isLoadingCycles={isLoadingCycles}
-          hasMore={hasMore}
-          isGeneratingPix={isGeneratingPix}
-          formatCurrency={formatCurrency}
-          formatDate={formatDate}
-          formatDateShort={formatDateShort}
-          onGeneratePix={handleGeneratePix}
-          onLoadMore={() => loadCycles(true)}
-        />
-      </View>
+        {/* Wrap FlatList in a View with a minimum height so it renders */}
+        <View style={styles.listWrapper}>
+          <BillingCyclesList
+            cycles={cycles}
+            isLoadingCycles={isLoadingCycles}
+            hasMore={hasMore}
+            isGeneratingPix={isGeneratingPix}
+            formatCurrency={formatCurrency}
+            formatDate={formatDate}
+            formatDateShort={formatDateShort}
+            onGeneratePix={handleGeneratePix}
+            onLoadMore={() => void loadCycles(true)}
+          />
+        </View>
+      </ScrollView>
 
       <PixPaymentModal
         visible={showPixModal}
@@ -240,4 +261,3 @@ export const DriverBillingScreen: React.FC<DriverBillingScreenProps> = ({ naviga
     </View>
   );
 };
-

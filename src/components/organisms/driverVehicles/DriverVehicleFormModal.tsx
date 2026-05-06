@@ -17,7 +17,7 @@ import { AutocompleteInput, AutocompleteItem } from '@/components/molecules/Auto
 import { useTheme } from '@/context/ThemeContext';
 import { tdv } from '@/i18n/driverVehicles';
 import { DriverServiceCategory } from '@/models/driverVehicles/types';
-import { shadows, spacing, typography } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 
 interface DriverVehicleFormModalProps {
   visible: boolean;
@@ -59,17 +59,17 @@ export function DriverVehicleFormModal({ visible, insets, isSubmitting, serviceC
       paddingHorizontal: spacing.md,
       paddingBottom: spacing.md,
       backgroundColor: colors.background,
-      borderBottomWidth: 1,
+      borderBottomWidth: borders.widthHairline,
       borderBottomColor: colors.border,
     },
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: spacing.xl * 2,
+      height: spacing.xl * 2,
+      borderRadius: spacing.xl,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.card,
-      borderWidth: 1,
+      borderWidth: borders.widthHairline,
       borderColor: colors.border,
     },
     modalTitle: { ...typography.h2, fontSize: 18, fontWeight: '700', color: colors.textPrimary },
@@ -90,10 +90,10 @@ export function DriverVehicleFormModal({ visible, insets, isSubmitting, serviceC
       fontSize: 16,
       color: colors.textPrimary,
       backgroundColor: colors.card,
-      borderRadius: 12,
+      borderRadius: borders.radiusMedium,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm + 2,
-      borderWidth: 1,
+      paddingVertical: spacing.sm + spacing.xs,
+      borderWidth: borders.widthHairline,
       borderColor: colors.border,
     },
     inputError: { borderColor: colors.status.error },
@@ -104,45 +104,50 @@ export function DriverVehicleFormModal({ visible, insets, isSubmitting, serviceC
       alignItems: 'center',
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.md,
-      borderRadius: 12,
+      borderRadius: borders.radiusMedium,
       marginBottom: spacing.sm,
       backgroundColor: colors.card,
-      borderWidth: 1,
+      borderWidth: borders.widthHairline,
       borderColor: colors.border,
     },
-    categoryOptionSelected: { borderColor: colors.primary, backgroundColor: `${colors.primary}10` },
+    categoryOptionSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     radio: {
-      width: 20,
-      height: 20,
-      borderRadius: 10,
-      borderWidth: 2,
+      width: spacing.xl,
+      height: spacing.xl,
+      borderRadius: spacing.md,
+      borderWidth: spacing.xs / 2,
       borderColor: colors.textSecondary,
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: spacing.sm,
     },
-    radioSelected: { borderColor: colors.primary },
-    radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+    radioSelected: { borderColor: colors.accent },
+    radioInner: {
+      width: spacing.sm + spacing.xs,
+      height: spacing.sm + spacing.xs,
+      borderRadius: spacing.sm,
+      backgroundColor: colors.accent,
+    },
     categoryText: { ...typography.body, fontSize: 15, fontWeight: '500', color: colors.textPrimary },
-    categoryTextSelected: { color: colors.primary, fontWeight: '600' },
+    categoryTextSelected: { color: colors.accent, fontWeight: '600' },
     footer: {
       paddingHorizontal: spacing.md,
       paddingTop: spacing.md,
-      borderTopWidth: 1,
+      borderTopWidth: borders.widthHairline,
       borderTopColor: colors.border,
       backgroundColor: colors.background,
     },
     submitButton: {
-      backgroundColor: colors.primary,
-      borderRadius: 16,
+      backgroundColor: colors.accent,
+      borderRadius: borders.radiusLarge,
       paddingVertical: spacing.md,
       alignItems: 'center',
       justifyContent: 'center',
       ...shadows.medium,
-      shadowColor: colors.primary,
+      shadowColor: colors.shadow,
     },
-    submitButtonDisabled: { opacity: 0.7, backgroundColor: colors.textSecondary },
-    submitText: { ...typography.body, fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+    submitButtonDisabled: { opacity: 0.55 },
+    submitText: { ...typography.body, fontSize: 16, fontWeight: '700', color: colors.onAccent },
   });
 
   return (
@@ -153,7 +158,7 @@ export function DriverVehicleFormModal({ visible, insets, isSubmitting, serviceC
             <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.modalTitle}>{tdv('newVehicleTitle')}</Text>
-          <View style={{ width: 40 }} />
+          <View style={{ width: spacing.xl * 2 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
@@ -282,7 +287,7 @@ export function DriverVehicleFormModal({ visible, insets, isSubmitting, serviceC
               onPress={actions.handleSubmit}
               disabled={isSubmitting}
             >
-              {isSubmitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitText}>{tdv('addVehicle')}</Text>}
+              {isSubmitting ? <ActivityIndicator size="small" color={colors.onAccent} /> : <Text style={styles.submitText}>{tdv('addVehicle')}</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

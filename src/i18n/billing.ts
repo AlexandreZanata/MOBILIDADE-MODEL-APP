@@ -36,6 +36,11 @@ const billingMessages = {
   noPendingDebt: 'Não há débito pendente para pagamento.',
   pixGenerateError: 'Não foi possível gerar o QR Code PIX. Tente novamente.',
   pixCopied: 'Código PIX copiado para a área de transferência!',
+  backButton: 'Voltar',
+  pendingCycles: 'Ciclos pendentes:',
+  nextDueDate: 'Próximo vencimento:',
+  viewActivePix: 'Ver PIX gerado',
+  generatingPix: 'Gerando PIX...',
   status: {
     PENDING: 'Pendente',
     PROCESSING: 'Processando',
