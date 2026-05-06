@@ -1,7 +1,18 @@
+/**
+ * @file WaitingForDriverScreen.tsx
+ * @description Entry-point screen for the "Waiting for Driver" flow.
+ *
+ * Responsibilities:
+ *  - Receives navigation params and delegates all logic to the hook
+ *  - Renders the pure-presentational organism
+ *  - Bottom navigation is intentionally hidden on this screen (one task: wait or cancel)
+ */
 import React from 'react';
 import { NavigationProp } from '@react-navigation/native';
 import { WaitingForDriverScreenContent } from '@/components/organisms/waitingForDriver/WaitingForDriverScreenContent';
 import { useWaitingForDriverScreen } from '@/hooks/waitingForDriver/useWaitingForDriverScreen';
+
+// ─── Navigation types ─────────────────────────────────────────────────────────
 
 type WaitingForDriverNavigationParams = {
   WaitingForDriver: {
@@ -23,7 +34,12 @@ interface WaitingForDriverScreenProps {
   };
 }
 
-export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({ navigation, route }) => {
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
+  navigation,
+  route,
+}) => {
   const state = useWaitingForDriverScreen({
     initialTripId: route?.params?.tripId ?? route?.params?.tripData?.id,
     initialEstimatedFare:
@@ -49,6 +65,9 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({ 
       ratingValue={state.ratingValue}
       ratingComment={state.ratingComment}
       isSubmittingRating={state.isSubmittingRating}
+      originAddress={state.originAddress}
+      destinationAddress={state.destinationAddress}
+      categoryName={state.categoryName}
       onToggleChat={state.onToggleChat}
       onCancelRide={state.onCancelRide}
       onSetRatingValue={state.setRatingValue}

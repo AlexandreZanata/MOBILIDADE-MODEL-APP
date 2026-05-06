@@ -1,13 +1,27 @@
-import React from 'react';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+/**
+ * @file WaitingForDriverScreenContent.tsx
+ * @description Full-screen organism for the "Waiting for Driver" state.
+ *
+ * Layout (spec):
+ *   [Full-screen Map — animated pulse ring while searching]
+ *   [Persistent Bottom Sheet — non-dismissable, cross-fades between states]
+ *   [Cancel Dialog — in-app modal, NOT Alert]
+ *   [Rating Modal — post-trip]
+ *   [Chat Window — overlaid when open]
+ *
+ * Architecture: pure presentational — all logic lives in useWaitingForDriverScreen.
+ */
+import React, { useCallback, useState } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { TileMap } from '@/components/molecules/TileMap';
 import { ChatWindow } from '@/components/organisms/ChatWindow';
-import { Card } from '@/components/atoms/Card';
-import { Avatar } from '@/components/atoms/Avatar';
-import Button from '@/components/atoms/Button';
-import { spacing, typography, shadows } from '@/theme';
-import { twfd } from '@/i18n/waitingForDriver';
+import { WaitingCancelDialog } from '@/components/molecules/waitingForDriver/WaitingCancelDialog';
+import { WaitingDriverFoundSheet } from '@/components/molecules/waitingForDriver/WaitingDriverFoundSheet';
+import { WaitingRatingModal } from '@/components/molecules/waitingForDriver/WaitingRatingModal';
+import { WaitingSearchingSheet } from '@/components/molecules/waitingForDriver/WaitingSearchingSheet';
+import { shadows } from '@/theme';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DriverSummary {
   id: string;
@@ -17,8 +31,17 @@ interface DriverSummary {
   vehicle?: { brand?: string; model?: string; plate?: string; color?: string };
 }
 
-interface WaitingForDriverScreenContentProps {
-  colors: { background: string; card: string; textPrimary: string; textSecondary: string; primary: string; border: string };
+interface ThemeColors {
+  background: string;
+  card: string;
+  textPrimary: string;
+  textSecondary: string;
+  primary: string;
+  border: string;
+}
+
+export interface WaitingForDriverScreenContentProps {
+  colors: ThemeColors;
   insetsTop: number;
   insetsBottom: number;
   rideId: string | null;
@@ -32,6 +55,11 @@ interface WaitingForDriverScreenContentProps {
   ratingValue: number;
   ratingComment: string;
   isSubmittingRating: boolean;
+  /** Optional trip metadata for the summary row */
+  originAddress?: string;
+  destinationAddress?: string;
+  categoryName?: string;
+  etaMinutes?: number;
   onToggleChat(): void;
   onCancelRide(): void;
   onSetRatingValue(value: number): void;
@@ -41,94 +69,103 @@ interface WaitingForDriverScreenContentProps {
   onSkipRating(): void;
 }
 
-export function WaitingForDriverScreenContent(props: WaitingForDriverScreenContentProps) {
-  const styles = createStyles(props.colors, props.insetsTop, props.insetsBottom);
-  const driverLocation = props.driver ? { lat: props.userLocation?.lat ?? 0, lon: props.userLocation?.lon ?? 0 } : undefined;
-  const vehicleLine = [props.driver?.vehicle?.brand, props.driver?.vehicle?.model, props.driver?.vehicle?.plate].filter(Boolean).join(' • ');
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function WaitingForDriverScreenContent(
+  props: WaitingForDriverScreenContentProps,
+): React.ReactElement {
+  const [cancelDialogVisible, setCancelDialogVisible] = useState(false);
+
+  const handleCancelPress = useCallback(() => setCancelDialogVisible(true), []);
+  const handleCancelDismiss = useCallback(() => setCancelDialogVisible(false), []);
+  const handleCancelConfirm = useCallback(() => {
+    setCancelDialogVisible(false);
+    props.onCancelRide();
+  }, [props]);
+
+  const driverLocation = props.driver
+    ? { lat: props.userLocation?.lat ?? 0, lon: props.userLocation?.lon ?? 0 }
+    : undefined;
 
   return (
-    <View style={styles.container}>
-      <TileMap userLocation={props.userLocation ?? undefined} driverLocation={driverLocation} showRoute />
+    <View style={[styles.container, { backgroundColor: props.colors.background }]}>
+      {/* ── Full-screen map ──────────────────────────────────────────────── */}
+      <TileMap
+        userLocation={props.userLocation ?? undefined}
+        driverLocation={driverLocation}
+        showRoute={!props.isSearching}
+      />
 
-      <View style={styles.overlay}>
-        <Card style={styles.card}>
-          <Text style={styles.title}>{props.isSearching ? twfd('searchingTitle') : twfd('driverAssignedTitle')}</Text>
-          <Text style={styles.subtitle}>{props.isSearching ? twfd('searchingSubtitle') : props.driver?.name}</Text>
-          {!props.isSearching && props.driver && (
-            <View style={styles.driverRow}>
-              <Avatar uri={props.driver.photoUrl} name={props.driver.name} size={44} />
-              <View style={styles.driverMeta}>
-                <Text style={styles.metaText}>{vehicleLine || '-'}</Text>
-                <Text style={styles.metaText}>
-                  {twfd('statusLabel')}: {props.tripStatus}
-                </Text>
-                <Text style={styles.metaText}>
-                  {twfd('fareLabel')}: {props.estimatedFare ? `R$ ${props.estimatedFare.toFixed(2)}` : '-'}
-                </Text>
-              </View>
-            </View>
-          )}
-          <View style={styles.actions}>
-            <Button title={props.chatOpenForRide ? twfd('closeChat') : twfd('openChat')} onPress={props.onToggleChat} variant="ghost" />
-            <Button title={twfd('cancelRide')} onPress={props.onCancelRide} variant="secondary" />
-          </View>
-        </Card>
-      </View>
+      {/* ── Bottom sheet ─────────────────────────────────────────────────── */}
+      <Animated.View
+        style={[
+          styles.sheetWrapper,
+          { paddingBottom: props.insetsBottom },
+          shadows.large,
+        ]}
+      >
+        {props.isSearching ? (
+          <WaitingSearchingSheet
+            estimatedFare={props.estimatedFare}
+            originAddress={props.originAddress}
+            destinationAddress={props.destinationAddress}
+            categoryName={props.categoryName}
+            etaMinutes={props.etaMinutes}
+            onChatPress={props.onToggleChat}
+            onCancelPress={handleCancelPress}
+          />
+        ) : props.driver != null ? (
+          <WaitingDriverFoundSheet
+            driver={props.driver}
+            etaMinutes={props.etaMinutes}
+            onChatPress={props.onToggleChat}
+            onFollowMapPress={props.onToggleChat}
+          />
+        ) : null}
+      </Animated.View>
 
-      {props.chatOpenForRide && props.rideId && (
-        <ChatWindow rideId={props.rideId} otherUserName={props.driver?.name ?? 'Motorista'} otherUserPhoto={props.driver?.photoUrl} />
+      {/* ── Cancel confirmation dialog ───────────────────────────────────── */}
+      <WaitingCancelDialog
+        visible={cancelDialogVisible}
+        onConfirm={handleCancelConfirm}
+        onDismiss={handleCancelDismiss}
+      />
+
+      {/* ── Rating modal ─────────────────────────────────────────────────── */}
+      <WaitingRatingModal
+        visible={props.ratingModalVisible}
+        ratingValue={props.ratingValue}
+        ratingComment={props.ratingComment}
+        isSubmitting={props.isSubmittingRating}
+        insetsBottom={props.insetsBottom}
+        onSetRatingValue={props.onSetRatingValue}
+        onSetRatingComment={props.onSetRatingComment}
+        onSubmit={props.onSubmitRating}
+        onSkip={props.onSkipRating}
+      />
+
+      {/* ── Chat window ──────────────────────────────────────────────────── */}
+      {props.chatOpenForRide && props.rideId != null && (
+        <ChatWindow
+          rideId={props.rideId}
+          otherUserName={props.driver?.name ?? 'Motorista'}
+          otherUserPhoto={props.driver?.photoUrl}
+        />
       )}
-
-      <Modal visible={props.ratingModalVisible} transparent animationType="fade" onRequestClose={() => props.onSetRatingModalVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.title}>{twfd('rateTitle')}</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <TouchableOpacity key={value} onPress={() => props.onSetRatingValue(value)}>
-                  <Ionicons
-                    name={value <= props.ratingValue ? 'star' : 'star-outline'}
-                    size={32}
-                    color={props.colors.primary}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TextInput
-              style={styles.commentInput}
-              multiline
-              placeholder={twfd('rateCommentPlaceholder')}
-              value={props.ratingComment}
-              onChangeText={props.onSetRatingComment}
-            />
-            <View style={styles.actions}>
-              <TouchableOpacity onPress={props.onSkipRating}>
-                <Text style={styles.skip}>{twfd('skipRating')}</Text>
-              </TouchableOpacity>
-              <Button title={twfd('submitRating')} onPress={props.onSubmitRating} loading={props.isSubmittingRating} />
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
 
-function createStyles(colors: WaitingForDriverScreenContentProps['colors'], insetsTop: number, insetsBottom: number) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    overlay: { position: 'absolute', top: insetsTop + spacing.md, left: spacing.md, right: spacing.md },
-    card: { padding: spacing.md, borderRadius: 18, ...shadows.medium },
-    title: { ...typography.h2, color: colors.textPrimary, marginBottom: spacing.xs },
-    subtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md },
-    driverRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
-    driverMeta: { flex: 1 },
-    metaText: { ...typography.caption, color: colors.textSecondary, marginBottom: 2 },
-    actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md, gap: spacing.sm },
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-    modalCard: { width: '100%', backgroundColor: colors.card, borderRadius: 20, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, paddingBottom: insetsBottom + spacing.md },
-    commentInput: { minHeight: 88, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: spacing.sm, marginTop: spacing.md, color: colors.textPrimary },
-    starsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.sm },
-    skip: { ...typography.body, color: colors.textSecondary, textDecorationLine: 'underline' },
-  });
-}
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  sheetWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+});
