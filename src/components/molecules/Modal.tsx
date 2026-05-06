@@ -31,6 +31,9 @@ export const Modal: React.FC<ModalProps> = ({
   onPrimaryPress,
   onSecondaryPress,
 }) => {
+  const handlePrimaryPress = onPrimaryPress ?? onClose;
+  const handleSecondaryPress = onSecondaryPress ?? onClose;
+
   return (
     <RNModal
       visible={visible}
@@ -48,14 +51,14 @@ export const Modal: React.FC<ModalProps> = ({
                 {secondaryButtonText && (
                   <Button
                     title={secondaryButtonText}
-                    onPress={onSecondaryPress || onClose}
+                    onPress={handleSecondaryPress}
                     variant="ghost"
                     style={styles.secondaryButton}
                   />
                 )}
                 <Button
                   title={primaryButtonText}
-                  onPress={onPrimaryPress || onClose}
+                  onPress={handlePrimaryPress}
                   variant="primary"
                   style={styles.primaryButton}
                 />

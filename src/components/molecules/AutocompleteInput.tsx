@@ -1,41 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  View,
-  TextInput,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Animated,
-  Keyboard,
-  ActivityIndicator,
-  ViewStyle,
-} from 'react-native';
+import React from 'react';
+import { ActivityIndicator, Animated, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing } from '@/theme';
 import { useTheme } from '@/context/ThemeContext';
+import { createAutocompleteStyles, getAutocompleteLabelAnimation } from '@/components/molecules/autocompleteInput/styles';
+import { AutocompleteInputProps, AutocompleteItem } from '@/components/molecules/autocompleteInput/types';
+import { useAutocompleteInput } from '@/components/molecules/autocompleteInput/useAutocompleteInput';
 
-export interface AutocompleteItem {
-  id: string;
-  name: string;
-  [key: string]: any;
-}
-
-interface AutocompleteInputProps {
-  label: string;
-  placeholder?: string;
-  value: AutocompleteItem | null;
-  onSelect: (item: AutocompleteItem | null) => void;
-  onSearch: (query: string) => Promise<AutocompleteItem[]>;
-  error?: boolean;
-  errorMessage?: string;
-  disabled?: boolean;
-  style?: ViewStyle;
-  debounceMs?: number;
-  minChars?: number;
-  emptyMessage?: string;
-  loadingMessage?: string;
-}
+export type { AutocompleteItem } from '@/components/molecules/autocompleteInput/types';
 
 export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   label,
@@ -53,251 +24,30 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   loadingMessage = 'Buscando...',
 }) => {
   const { colors } = useTheme();
-  const [isFocused, setIsFocused] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [items, setItems] = useState<AutocompleteItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [labelAnim] = useState(new Animated.Value(value ? 1 : 0));
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const inputRef = useRef<TextInput>(null);
-
-  const hasValue = !!value;
-  const isLabelFloating = isFocused || hasValue || searchText.length > 0;
-
-  useEffect(() => {
-    Animated.timing(labelAnim, {
-      toValue: isLabelFloating ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [isLabelFloating, labelAnim]);
-
-  // Limpa o timeout ao desmontar
-  useEffect(() => {
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const performSearch = useCallback(async (query: string) => {
-    if (query.length < minChars) {
-      setItems([]);
-      setHasSearched(false);
-      return;
-    }
-
-    setIsLoading(true);
-    setHasSearched(true);
-    try {
-      const results = await onSearch(query);
-      setItems(results);
-    } catch (error) {
-      console.error('[Autocomplete] Erro na busca:', error);
-      setItems([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onSearch, minChars]);
-
-  const handleTextChange = (text: string) => {
-    setSearchText(text);
-    
-    // Se tinha um valor selecionado e o usuário começou a digitar, limpa a seleção
-    if (value && text !== value.name) {
-      onSelect(null);
-    }
-
-    // Cancela busca anterior
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // Agenda nova busca com debounce
-    searchTimeoutRef.current = setTimeout(() => {
-      performSearch(text);
-    }, debounceMs);
-  };
-
-  const handleFocus = () => {
-    setIsFocused(true);
-    setShowDropdown(true);
-    // Se não tem texto e minChars é 0, faz busca inicial
-    if (searchText.length === 0 && minChars === 0) {
-      performSearch('');
-    }
-  };
-
-  const handleBlur = () => {
-    setIsFocused(false);
-    // Delay para permitir clique nos itens
-    setTimeout(() => {
-      setShowDropdown(false);
-    }, 200);
-  };
-
-  const handleSelectItem = (item: AutocompleteItem) => {
-    setSearchText(item.name);
-    onSelect(item);
-    setShowDropdown(false);
-    Keyboard.dismiss();
-  };
-
-  const handleClear = () => {
-    setSearchText('');
-    onSelect(null);
-    setItems([]);
-    setHasSearched(false);
-    inputRef.current?.focus();
-  };
-
-  const labelTop = labelAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [spacing.md + 6, spacing.xs + 2],
+  const {
+    inputRef,
+    isFocused,
+    showDropdown,
+    searchText,
+    items,
+    isLoading,
+    hasSearched,
+    labelAnim,
+    isLabelFloating,
+    handleTextChange,
+    handleFocus,
+    handleBlur,
+    handleSelectItem,
+    handleClear,
+  } = useAutocompleteInput({
+    value,
+    onSelect,
+    onSearch,
+    minChars,
+    debounceMs,
   });
-
-  const labelScale = labelAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.85],
-  });
-
-  const labelColor = isLabelFloating
-    ? error ? colors.status.error : colors.primary
-    : colors.textSecondary;
-
-  const styles = StyleSheet.create({
-    container: {
-      marginBottom: 0,
-      zIndex: 100,
-    },
-    inputContainer: {
-      position: 'relative',
-      height: 60,
-    },
-    input: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      paddingHorizontal: spacing.md + 4,
-      paddingRight: 52,
-      paddingTop: spacing.md + 6,
-      paddingBottom: spacing.md - 2,
-      borderWidth: isFocused ? 2.5 : 2,
-      borderColor: error
-        ? colors.status.error
-        : isFocused
-          ? colors.primary
-          : colors.border,
-      color: colors.textPrimary,
-      fontSize: 16,
-    },
-    inputDisabled: {
-      backgroundColor: colors.background,
-      opacity: 0.7,
-      borderColor: colors.border,
-    },
-    label: {
-      position: 'absolute',
-      left: spacing.md + 4,
-      zIndex: 1,
-      pointerEvents: 'none',
-    },
-    labelText: {
-      fontSize: 16,
-      fontWeight: '400',
-    },
-    rightIconContainer: {
-      position: 'absolute',
-      right: spacing.sm + 4,
-      top: 0,
-      bottom: 0,
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: 44,
-      zIndex: 2,
-    },
-    clearButton: {
-      padding: 8,
-    },
-    dropdown: {
-      position: 'absolute',
-      top: 64,
-      left: 0,
-      right: 0,
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: colors.border,
-      maxHeight: 220,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 8,
-      zIndex: 1000,
-    },
-    dropdownContent: {
-      borderRadius: 14,
-      overflow: 'hidden',
-    },
-    itemContainer: {
-      paddingVertical: spacing.sm + 4,
-      paddingHorizontal: spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    itemContainerLast: {
-      borderBottomWidth: 0,
-    },
-    itemText: {
-      fontSize: 15,
-      color: colors.textPrimary,
-      fontWeight: '500',
-    },
-    itemTextHighlight: {
-      color: colors.primary,
-      fontWeight: '600',
-    },
-    emptyContainer: {
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-    },
-    emptyText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      textAlign: 'center',
-    },
-    loadingContainer: {
-      paddingVertical: spacing.lg,
-      paddingHorizontal: spacing.md,
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: spacing.sm,
-    },
-    loadingText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    errorText: {
-      marginTop: spacing.xs,
-      marginLeft: spacing.xs,
-      fontSize: 12,
-      color: colors.status.error,
-      fontWeight: '500',
-    },
-    selectedIndicator: {
-      marginLeft: spacing.xs,
-    },
-  });
+  const styles = createAutocompleteStyles({ colors, error, isFocused, isLabelFloating });
+  const labelAnimation = getAutocompleteLabelAnimation(labelAnim, isLabelFloating, error, colors);
 
   const renderItem = ({ item, index }: { item: AutocompleteItem; index: number }) => {
     const isSelected = value?.id === item.id;
@@ -308,7 +58,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         style={[
           styles.itemContainer,
           isLast && styles.itemContainerLast,
-          isSelected && { backgroundColor: `${colors.primary}15` },
+          isSelected && styles.selectedItemBackground,
         ]}
         onPress={() => handleSelectItem(item)}
         activeOpacity={0.7}
@@ -353,7 +103,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             name="search-outline"
             size={24}
             color={colors.textSecondary}
-            style={{ marginBottom: spacing.xs }}
+            style={styles.emptyIcon}
           />
           <Text style={styles.emptyText}>{emptyMessage}</Text>
         </View>
@@ -383,13 +133,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           ref={inputRef}
           style={[
             styles.input,
-            isFocused && !error && {
-              shadowColor: colors.primary,
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 3,
-            },
+            isFocused && !error && styles.inputFocusedShadow,
             disabled && styles.inputDisabled,
           ]}
           placeholder={isLabelFloating ? placeholder : ''}
@@ -407,11 +151,11 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             styles.label,
             styles.labelText,
             {
-              top: labelTop,
-              transform: [{ scale: labelScale }],
-              color: labelColor,
-              fontSize: isLabelFloating ? 12 : 16,
-              fontWeight: isLabelFloating ? '600' : '400',
+              top: labelAnimation.top,
+              transform: [{ scale: labelAnimation.scale }],
+              color: labelAnimation.color,
+              fontSize: labelAnimation.fontSize,
+              fontWeight: labelAnimation.fontWeight,
             },
           ]}
         >
