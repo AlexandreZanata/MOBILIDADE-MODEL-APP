@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import {
-  ActivityIndicator,
+  Animated,
   Modal,
   StyleSheet,
   Text,
@@ -17,9 +17,66 @@ import { usePaymentSheet } from '@/hooks/home/usePaymentSheet';
 import { th } from '@/i18n/home';
 import { tpm } from '@/i18n/paymentMethod';
 
+// ---------------------------------------------------------------------------
+// Skeleton row — shown while methods are loading
+// ---------------------------------------------------------------------------
+
+function SkeletonRow() {
+  const { colors } = useTheme();
+  const anim = React.useRef(new Animated.Value(0.4)).current;
+
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ]),
+    ).start();
+  }, [anim]);
+
+  return (
+    <Animated.View style={[skeletonStyles.row, { opacity: anim }]}>
+      <View style={[skeletonStyles.icon, { backgroundColor: colors.border }]} />
+      <View style={skeletonStyles.textBlock}>
+        <View style={[skeletonStyles.line, { backgroundColor: colors.border, width: '55%' }]} />
+        <View style={[skeletonStyles.line, { backgroundColor: colors.border, width: '35%', marginTop: 6 }]} />
+      </View>
+      <View style={[skeletonStyles.radio, { borderColor: colors.border }]} />
+    </Animated.View>
+  );
+}
+
+const skeletonStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 56,
+    gap: spacing.md,
+  },
+  icon: {
+    width: 32,
+    height: 32,
+    borderRadius: borders.radiusSmall,
+  },
+  textBlock: { flex: 1 },
+  line: {
+    height: 10,
+    borderRadius: 5,
+  },
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// PaymentSheet
+// ---------------------------------------------------------------------------
+
 export interface PaymentSheetProps {
   visible: boolean;
-  /** Currently selected method id — controlled by parent */
   selectedId: string | null;
   onSelect: (method: UiPaymentMethod) => void;
   onClose: () => void;
@@ -27,8 +84,8 @@ export interface PaymentSheetProps {
 
 /**
  * Full-screen modal overlay for payment method selection.
- * Loads methods from the API via usePaymentSheet.
- * Uses fade animation so the backdrop fills the screen uniformly.
+ * Data is loaded eagerly (before the modal opens) via usePaymentSheet.
+ * Shows a skeleton while loading — no spinner, no layout shift.
  */
 export const PaymentSheet = memo(function PaymentSheet({
   visible,
@@ -47,6 +104,9 @@ export const PaymentSheet = memo(function PaymentSheet({
         borderTopColor: colors.border,
       }
     : { backgroundColor: colors.card, ...shadows.large };
+
+  // Show 4 skeleton rows while loading (matches typical method count)
+  const SKELETON_COUNT = 4;
 
   return (
     <Modal
@@ -85,20 +145,16 @@ export const PaymentSheet = memo(function PaymentSheet({
           </Text>
         </View>
 
-        {/* Loading state */}
-        {isLoading && (
-          <View style={styles.centerState}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={[styles.stateText, { color: colors.textSecondary }]}>
-              {tpm('loadingMethods')}
-            </Text>
-          </View>
-        )}
+        {/* Skeleton while loading */}
+        {isLoading && Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+          <SkeletonRow key={i} />
+        ))}
 
         {/* Error state */}
         {!isLoading && hasError && (
-          <View style={styles.centerState}>
-            <Text style={[styles.stateText, { color: colors.textSecondary }]}>
+          <View style={styles.errorState}>
+            <Ionicons name="alert-circle-outline" size={24} color={colors.textSecondary} />
+            <Text style={[styles.errorText, { color: colors.textSecondary }]}>
               {tpm('loadMethodsFailed')}
             </Text>
           </View>
@@ -149,15 +205,17 @@ export const PaymentSheet = memo(function PaymentSheet({
         })}
 
         {/* Add card */}
-        <TouchableOpacity
-          style={[styles.addCard, { borderColor: colors.accent }]}
-          accessibilityRole="button"
-          accessibilityLabel={th('addCard')}
-        >
-          <Text style={[styles.addCardText, { color: colors.accent }]}>
-            {th('addCard')}
-          </Text>
-        </TouchableOpacity>
+        {!isLoading && (
+          <TouchableOpacity
+            style={[styles.addCard, { borderColor: colors.accent }]}
+            accessibilityRole="button"
+            accessibilityLabel={th('addCard')}
+          >
+            <Text style={[styles.addCardText, { color: colors.accent }]}>
+              {th('addCard')}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Confirm CTA */}
         <TouchableOpacity
@@ -214,14 +272,14 @@ const styles = StyleSheet.create({
   title: {
     ...typography.subtitle,
   },
-  centerState: {
+  errorState: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     paddingVertical: spacing.xl,
     justifyContent: 'center',
   },
-  stateText: {
+  errorText: {
     ...typography.caption,
   },
   optionRow: {

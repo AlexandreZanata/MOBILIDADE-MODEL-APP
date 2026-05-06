@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { PaymentMethod as ApiPaymentMethod, PaymentMethodType } from '@/models/paymentMethod/types';
 import { UiPaymentMethod } from '@/models/payment/types';
@@ -70,12 +70,18 @@ export interface UsePaymentSheetResult {
 /**
  * Loads payment methods from the API and maps them to UI display models.
  * Keeps the selected method in sync so PaymentRow always shows the right icon.
+ * Calls `onInitialLoad` once when the first method is auto-selected.
  */
-export function usePaymentSheet(): UsePaymentSheetResult {
+export function usePaymentSheet(
+  onInitialLoad?: (methodId: string) => void,
+): UsePaymentSheetResult {
   const [methods, setMethods] = useState<UiPaymentMethod[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  // Stable ref so the callback doesn't re-trigger the effect
+  const onInitialLoadRef = useRef(onInitialLoad);
+  onInitialLoadRef.current = onInitialLoad;
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -91,8 +97,15 @@ export function usePaymentSheet(): UsePaymentSheetResult {
 
     const ui = result.data.map(toUiMethod);
     setMethods(ui);
-    // Pre-select first method if nothing is selected yet
-    setSelectedId((prev) => prev ?? ui[0]?.id ?? null);
+    setSelectedId((prev) => {
+      const next = prev ?? ui[0]?.id ?? null;
+      // Notify parent about the auto-selected method so it can pass the id
+      // to useHome without requiring the user to open the payment sheet first.
+      if (!prev && next) {
+        onInitialLoadRef.current?.(next);
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {

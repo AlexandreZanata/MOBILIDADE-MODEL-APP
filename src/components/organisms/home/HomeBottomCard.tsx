@@ -63,7 +63,7 @@ export const HomeBottomCard = memo(function HomeBottomCard({
 }: HomeBottomCardProps) {
   const { colors, isDark } = useTheme();
   const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
-  const { selectedMethod, selectMethod } = usePaymentSheet();
+  const { selectedMethod, selectMethod } = usePaymentSheet(onPaymentMethodChange);
 
   const handleSelectMethod = useCallback((method: UiPaymentMethod) => {
     selectMethod(method.id);

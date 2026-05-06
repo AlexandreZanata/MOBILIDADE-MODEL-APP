@@ -24,6 +24,29 @@ interface UseHomeParams {
 const SORRISO_LOCATION: HomeLocation = { lat: -12.5458, lon: -55.7061 };
 const CACHE_KEYS = { USER_LOCATION: '@vamu:user_location', LOCATION_TIMESTAMP: '@vamu:location_timestamp' };
 
+/**
+ * Estimate validity window from the API (60s).
+ * We renew 10s before expiry to avoid race conditions.
+ */
+const ESTIMATE_RENEW_THRESHOLD_MS = 50_000; // renew when age > 50s
+const ESTIMATE_CHECK_INTERVAL_MS = 10_000;  // check every 10s
+
+/**
+ * Detects whether an API error message indicates the estimate has expired
+ * or was not found — the two cases where a silent renewal + retry is safe.
+ */
+function isEstimateExpiredError(message?: string): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return (
+    lower.includes('estimativa') ||
+    lower.includes('estimate') ||
+    lower.includes('expir') ||
+    lower.includes('not found') ||
+    lower.includes('não encontrada')
+  );
+}
+
 function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371e3;
   const p1 = (a.lat * Math.PI) / 180;
@@ -215,6 +238,51 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
     [],
   );
 
+  /**
+   * Silently renews the fare estimate using the current destination and
+   * user location. Returns the new estimateId on success, null on failure.
+   * Does NOT reset categories — only refreshes the estimateId + timestamp.
+   */
+  const renewEstimate = useCallback(async (): Promise<string | null> => {
+    if (!selectedDestination || !userLocation) return null;
+    const result = await tripPriceFacade.getCategoriesWithEstimate(
+      { lat: userLocation.lat, lng: userLocation.lon },
+      { lat: selectedDestination.lat, lng: selectedDestination.lon },
+    );
+    if (!result.success || !result.data) return null;
+    setEstimateId(result.data.estimateId);
+    setEstimateTimestamp(Date.now());
+    return result.data.estimateId;
+  }, [selectedDestination, userLocation]);
+
+  /**
+   * Returns a fresh estimateId — renews if the current one is older than
+   * ESTIMATE_RENEW_THRESHOLD_MS or missing.
+   */
+  const ensureFreshEstimate = useCallback(async (): Promise<string | null> => {
+    if (!estimateId) return renewEstimate();
+    if (!estimateTimestamp) return renewEstimate();
+    if (Date.now() - estimateTimestamp >= ESTIMATE_RENEW_THRESHOLD_MS) {
+      return renewEstimate();
+    }
+    return estimateId;
+  }, [estimateId, estimateTimestamp, renewEstimate]);
+
+  /**
+   * Background renewal: while a destination is selected, keep the estimate
+   * alive by renewing it before it expires on the server.
+   */
+  useEffect(() => {
+    if (!selectedDestination || !userLocation || !estimateTimestamp) return;
+    const interval = setInterval(() => {
+      const age = Date.now() - estimateTimestamp;
+      if (age >= ESTIMATE_RENEW_THRESHOLD_MS) {
+        void renewEstimate();
+      }
+    }, ESTIMATE_CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [estimateTimestamp, renewEstimate, selectedDestination, userLocation]);
+
   const onSelectLocation = useCallback(async (result: HomeDestination) => {
     Keyboard.dismiss();
 
@@ -279,19 +347,35 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
       Alert.alert(th('chooseDestinationTitle'), tpm('selectMethod'));
       return;
     }
-    if (!estimateId) {
+
+    await ensureToken();
+
+    // Always get a fresh estimate — renews silently if close to expiry
+    const freshEstimateId = await ensureFreshEstimate();
+    if (!freshEstimateId) {
       Alert.alert(tpm('errorTitle'), tpm('estimateIdNotFound'));
       return;
     }
 
-    await ensureToken();
     const selectedCategory = rideCategories.find((c) => c.id === selectedCategoryId);
 
-    const result = await paymentMethodFacade.createRide({
-      estimateId,
+    let result = await paymentMethodFacade.createRide({
+      estimateId: freshEstimateId,
       serviceCategoryId: selectedCategoryId,
       paymentMethodId: selectedPaymentMethodId,
     });
+
+    // If the server still rejects the estimate (race condition), renew once and retry
+    if (!result.success && isEstimateExpiredError(result.error?.message)) {
+      const retryEstimateId = await renewEstimate();
+      if (retryEstimateId) {
+        result = await paymentMethodFacade.createRide({
+          estimateId: retryEstimateId,
+          serviceCategoryId: selectedCategoryId,
+          paymentMethodId: selectedPaymentMethodId,
+        });
+      }
+    }
 
     if (!result.success || !result.data) {
       Alert.alert(tpm('errorTitle'), result.error?.message ?? tpm('createRideFailed'));
@@ -312,9 +396,10 @@ export function useHome({ navigation, selectedPaymentMethodId }: UseHomeParams) 
       estimatedFare: selectedCategory?.finalFare ?? result.data.estimatedPrice ?? result.data.estimated_fare ?? null,
     });
   }, [
+    ensureFreshEstimate,
     ensureToken,
-    estimateId,
     navigation,
+    renewEstimate,
     rideCategories,
     selectedCategoryId,
     selectedDestination,
