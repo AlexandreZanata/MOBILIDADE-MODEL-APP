@@ -35,8 +35,13 @@ export function useHome({ navigation }: UseHomeParams) {
   const isDriver = user?.roles?.includes('driver') || user?.type === 'motorista' || user?.type === 'driver';
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRequestedRef = useRef(false);
-  /** Suppresses the debounced search when the query was set programmatically by a selection. */
-  const suppressNextSearchRef = useRef(false);
+  /**
+   * Tracks the query value that was set programmatically after a location selection.
+   * While `searchQuery === lockedQueryRef.current` the debounce effect will not fire
+   * a new API request — the text is locked to the selected destination name.
+   * Cleared to `null` when the user edits the field or presses the clear button.
+   */
+  const lockedQueryRef = useRef<string | null>(null);
   const inputRef = useRef<{ focus: () => void; blur: () => void; isFocused: () => boolean } | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -127,9 +132,9 @@ export function useHome({ navigation }: UseHomeParams) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    // Query was set by a selection — skip the search and reset the flag
-    if (suppressNextSearchRef.current) {
-      suppressNextSearchRef.current = false;
+    // The query matches the locked value set by a programmatic selection.
+    // The user has not changed the text, so no API request should be fired.
+    if (lockedQueryRef.current !== null && searchQuery === lockedQueryRef.current) {
       return;
     }
 
@@ -138,6 +143,7 @@ export function useHome({ navigation }: UseHomeParams) {
       setShowResults(false);
       return;
     }
+
     debounceRef.current = setTimeout(() => void searchLocation(searchQuery), 500);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -206,8 +212,10 @@ export function useHome({ navigation }: UseHomeParams) {
   const onSelectLocation = useCallback(async (result: HomeDestination) => {
     Keyboard.dismiss();
 
-    // Set the flag BEFORE setSearchQuery so the debounce effect sees it
-    suppressNextSearchRef.current = true;
+    // Lock the query to this value so the debounce effect never fires a search
+    // for text that was set programmatically. The lock persists until the user
+    // edits the field or clears it.
+    lockedQueryRef.current = result.name;
     setSearchQuery(result.name);
     setShowResults(false);
     setSearchResults([]);
@@ -223,7 +231,8 @@ export function useHome({ navigation }: UseHomeParams) {
 
     if (!hasValidCoords) {
       Alert.alert(th('resolveLocationTitle'), th('resolveLocationDescription'));
-      suppressNextSearchRef.current = true; // also suppress the clear below
+      // Lock an empty string so the clear below does not trigger a search either
+      lockedQueryRef.current = '';
       setSearchQuery('');
       return;
     }
@@ -296,14 +305,25 @@ export function useHome({ navigation }: UseHomeParams) {
     isLoadingCategories,
     selectedCategoryDuration: rideCategories.find((c) => c.id === selectedCategoryId)?.durationSeconds ?? null,
     setSearchQuery: (text: string) => {
+      // The user is typing — unlock the query so searches can fire again
+      // and clear the selected destination since it no longer matches the input.
+      lockedQueryRef.current = null;
+      setSelectedDestination(null);
+      setRideCategories([]);
+      setSelectedCategoryId(null);
       setSearchQuery(text);
       if (text) setShowHelperText(false);
     },
     clearSearch: () => {
+      // Explicit clear via the "X" button — unlock and reset everything.
+      lockedQueryRef.current = null;
       setSearchQuery('');
       setSearchResults([]);
       setShowResults(false);
       setIsSearching(false);
+      setSelectedDestination(null);
+      setRideCategories([]);
+      setSelectedCategoryId(null);
     },
     setShowResults,
     onSelectLocation,
