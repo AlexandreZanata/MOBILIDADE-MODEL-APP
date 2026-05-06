@@ -18,9 +18,24 @@ export function ProfileSettingsGroups({ groups, onRowPress }: ProfileSettingsGro
   const { colors } = useTheme();
 
   const styles = StyleSheet.create({
-    outer: { marginHorizontal: spacing.md, marginTop: spacing.md, gap: spacing.md },
-    groupLabel: { ...typography.label, color: colors.textSecondary, marginBottom: spacing.xs, marginLeft: spacing.xs },
-    card: { paddingHorizontal: 0, paddingVertical: 0, overflow: 'hidden' },
+    outer: { marginHorizontal: spacing.md, marginTop: spacing.lg, gap: spacing.lg },
+    groupLabel: {
+      ...typography.caption,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+      marginLeft: spacing.xs,
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    card: {
+      paddingHorizontal: 0,
+      paddingVertical: 0,
+      overflow: 'hidden',
+      borderRadius: borders.radiusLarge,
+      borderWidth: borders.widthHairline,
+      borderColor: colors.border,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

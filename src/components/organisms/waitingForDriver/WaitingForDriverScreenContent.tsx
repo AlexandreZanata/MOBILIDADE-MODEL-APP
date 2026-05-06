@@ -44,6 +44,8 @@ export interface WaitingForDriverScreenContentProps {
   colors: ThemeColors;
   insetsTop: number;
   insetsBottom: number;
+  mapZoom: number;
+  onMapZoom(zoom: number): void;
   rideId: string | null;
   /** Device GPS location — used for the user pin. */
   userLocation: { lat: number; lon: number } | null;
@@ -113,6 +115,8 @@ export function WaitingForDriverScreenContent(
         // Center on GPS location or trip origin — never undefined
         centerLat={mapCenter?.lat}
         centerLon={mapCenter?.lon}
+        zoom={props.mapZoom}
+        onZoom={props.onMapZoom}
         // User pin (blue dot)
         userLocation={props.userLocation ?? undefined}
         // Destination pin (red flag)

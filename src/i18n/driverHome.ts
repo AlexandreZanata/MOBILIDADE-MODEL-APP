@@ -37,6 +37,21 @@ const driverHomeMessages = {
   defaultCnhRejectedReason: 'CNH rejeitada',
   pendingDocsDefault:
     'Voce tem documentos pendentes de aprovacao. So podera fazer corridas apos a aprovacao.',
+  // ─── Status card ────────────────────────────────────────────────────────────
+  statusAvailable: 'Disponivel para corridas',
+  statusUnavailable: 'Indisponivel',
+  statusConnecting: 'Conectando com o servidor...',
+  statusRateLimitedAvailability: 'Aguardando 1 minuto para enviar requisicao...',
+  statusRateLimited: 'Aguardando antes de continuar...',
+  statusUpdatingLocation: 'Atualizando localizacao...',
+  statusReady: 'Pronto para receber corridas',
+  statusPendingDocsDefault: 'Documentos pendentes de aprovacao',
+  // ─── Info card ───────────────────────────────────────────────────────────────
+  infoCardTitle: 'Voce esta indisponivel',
+  infoCardSubtitle:
+    'Ative o modo disponivel para comecar a receber corridas e ganhar dinheiro. Sua localizacao sera compartilhada quando voce estiver online.',
+  infoCardButtonActivate: 'Ativar Disponibilidade',
+  infoCardButtonConnecting: 'Conectando...',
 } as const;
 
 type DriverHomeMessageKey = keyof typeof driverHomeMessages;

@@ -6,6 +6,7 @@ import { Card } from '@/components/atoms/Card';
 import Button from '@/components/atoms/Button';
 import { shadows, spacing, typography } from '@/theme';
 import { useTheme } from '@/context/ThemeContext';
+import { tdh } from '@/i18n/driverHome';
 
 interface DriverHomeStatusCardProps {
   isAvailable: boolean;
@@ -147,21 +148,25 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
           <View style={styles.statusLeft}>
             <View style={styles.statusIndicator} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusText}>{props.isAvailable ? 'Disponível para corridas' : 'Indisponível'}</Text>
-              {props.isConnecting && <Text style={styles.statusSubtext}>Conectando com o servidor...</Text>}
+              <Text style={styles.statusText}>
+                {props.isAvailable ? tdh('statusAvailable') : tdh('statusUnavailable')}
+              </Text>
+              {props.isConnecting && (
+                <Text style={styles.statusSubtext}>{tdh('statusConnecting')}</Text>
+              )}
               {!props.isConnecting && props.isAvailable && (
                 <Text style={styles.statusSubtext}>
                   {props.isAvailabilityRateLimited
-                    ? 'Aguardando 1 minuto para enviar requisição...'
+                    ? tdh('statusRateLimitedAvailability')
                     : props.isRateLimited
-                      ? 'Aguardando antes de continuar...'
+                      ? tdh('statusRateLimited')
                       : props.isUpdatingLocation
-                        ? 'Atualizando localização...'
-                        : 'Pronto para receber corridas'}
+                        ? tdh('statusUpdatingLocation')
+                        : tdh('statusReady')}
                 </Text>
               )}
               {!props.isConnecting && !props.isAvailable && props.isAvailabilityRateLimited && (
-                <Text style={styles.statusSubtext}>Aguardando 1 minuto para enviar requisição...</Text>
+                <Text style={styles.statusSubtext}>{tdh('statusRateLimitedAvailability')}</Text>
               )}
             </View>
           </View>
@@ -184,7 +189,7 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
           <View style={styles.validationWarning}>
             <Ionicons name="warning-outline" size={16} color={colors.status.warning} />
             <Text style={styles.validationWarningText}>
-              {props.validationWarningMessage || 'Documentos pendentes de aprovação'}
+              {props.validationWarningMessage || tdh('statusPendingDocsDefault')}
             </Text>
           </View>
         )}
@@ -201,14 +206,12 @@ export const DriverHomeStatusCard = memo((props: DriverHomeStatusCardProps) => {
                 <Ionicons name="car-outline" size={32} color={colors.primary} />
               </View>
               <View style={styles.infoText}>
-                <Text style={styles.infoTitle}>Você está indisponível</Text>
-                <Text style={styles.infoSubtitle}>
-                  Ative o modo disponível para começar a receber corridas e ganhar dinheiro. Sua localização será compartilhada quando você estiver online.
-                </Text>
+                <Text style={styles.infoTitle}>{tdh('infoCardTitle')}</Text>
+                <Text style={styles.infoSubtitle}>{tdh('infoCardSubtitle')}</Text>
               </View>
             </View>
             <Button
-              title={props.isConnecting ? 'Conectando...' : 'Ativar Disponibilidade'}
+              title={props.isConnecting ? tdh('infoCardButtonConnecting') : tdh('infoCardButtonActivate')}
               onPress={props.onActivate}
               variant="primary"
               fullWidth

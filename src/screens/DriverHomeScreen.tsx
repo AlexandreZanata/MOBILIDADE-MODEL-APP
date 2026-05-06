@@ -31,6 +31,7 @@ export const DriverHomeScreen: React.FC<DriverHomeScreenProps> = ({ navigation }
         apiError={vm.apiError}
         isCheckingActiveRide={vm.isCheckingActiveRide}
         onMapMove={vm.handleMapMove}
+        onZoom={vm.setMapZoom}
         onZoomIn={vm.handleZoomIn}
         onZoomOut={vm.handleZoomOut}
         onRecenter={vm.handleRecenterLocation}

@@ -48,6 +48,8 @@ export interface ActivePassengerMapItem {
 
 export interface DriverOperationalStatusData {
   operationalStatus: 'AVAILABLE' | 'BUSY' | 'PAUSED' | 'OFFLINE';
+  /** Whether the driver is currently connected to the WebSocket server. */
+  isOnline: boolean;
   canReceiveRides: boolean;
 }
 

@@ -39,13 +39,14 @@ class DriverWebSocketClient extends BaseWebSocket<DriverServerMessage, DriverCli
         console.log('[DriverWebSocket] Connection established.');
         break;
       case 'location_update':
-        console.log('[DriverWebSocket] Location acknowledged.');
+        // Location acknowledged — no action needed beyond callback dispatch.
         break;
       case 'pong':
         // Heartbeat acknowledged — no action needed.
         break;
       case 'status_updated':
-        console.log('[DriverWebSocket] Status updated:', message.message);
+        // Dispatched to subscribers via the callback registry (see BaseWebSocket).
+        console.log('[DriverWebSocket] Operational status confirmed by server:', message.message);
         break;
       case 'passenger_location':
         console.log('[DriverWebSocket] Passenger location received:', message.rideId);

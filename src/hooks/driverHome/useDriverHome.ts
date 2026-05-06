@@ -116,6 +116,7 @@ export function useDriverHome({ navigation }: UseDriverHomeParams) {
     setInfoCardHeight,
     setStatusCardHeight,
     setMapCenter: location.setMapCenter,
+    setMapZoom: location.setMapZoom,
     handleMapMove: location.handleMapMove,
     handleRecenterLocation: location.handleRecenterLocation,
     handleZoomIn: location.handleZoomIn,

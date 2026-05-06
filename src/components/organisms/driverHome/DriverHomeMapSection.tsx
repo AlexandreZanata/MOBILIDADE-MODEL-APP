@@ -20,6 +20,7 @@ interface DriverHomeMapSectionProps {
   apiError: string | null;
   isCheckingActiveRide: boolean;
   onMapMove: () => void;
+  onZoom: (zoom: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onRecenter: () => void;
@@ -125,6 +126,7 @@ export const DriverHomeMapSection = memo((props: DriverHomeMapSectionProps) => {
           passengerLocation={props.passengerLocation ? { lat: props.passengerLocation.lat, lon: props.passengerLocation.lng } : undefined}
           drivers={props.nearbyDrivers}
           onMapMove={props.onMapMove}
+          onZoom={props.onZoom}
           isDriver={true}
           bottomContainerHeight={0}
           topSpaceHeight={0}

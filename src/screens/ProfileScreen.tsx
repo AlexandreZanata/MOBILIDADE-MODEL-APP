@@ -1,10 +1,10 @@
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
-import { spacing } from '@/theme';
+import { spacing, typography } from '@/theme';
+import { tp } from '@/i18n/profile';
 import { ProfileHeaderCard } from '@/components/organisms/profile/ProfileHeaderCard';
-import { ProfileIdentitySummaryCard } from '@/components/molecules/profile/ProfileIdentitySummaryCard';
 import { ProfileRatingStarsCard } from '@/components/molecules/profile/ProfileRatingStarsCard';
 import { ProfilePersonalInfoSection } from '@/components/organisms/profile/ProfilePersonalInfoSection';
 import { ProfileSettingsGroups } from '@/components/organisms/profile/ProfileSettingsGroups';
@@ -27,8 +27,19 @@ export const ProfileScreen: React.FC = () => {
       backgroundColor: colors.background,
     },
     contentContainer: {
-      paddingTop: spacing.md,
-      paddingBottom: spacing.md + insets.bottom,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xl + insets.bottom,
+    },
+    screenIntro: {
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    screenTitle: { ...typography.display, color: colors.textPrimary },
+    screenSubtitle: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+      lineHeight: 18,
     },
   });
 
@@ -41,6 +52,10 @@ export const ProfileScreen: React.FC = () => {
           <RefreshControl refreshing={vm.isRefreshing} onRefresh={vm.handleRefresh} colors={[colors.primary]} />
         }
       >
+        <View style={styles.screenIntro}>
+          <Text style={styles.screenTitle}>{tp('screenTitle')}</Text>
+          <Text style={styles.screenSubtitle}>{tp('screenSubtitle')}</Text>
+        </View>
         <ProfileHeaderCard
           userName={vm.userName}
           email={vm.emailDisplay}
@@ -50,7 +65,6 @@ export const ProfileScreen: React.FC = () => {
           isDriverAccount={vm.userIsDriver}
           onEditPhoto={vm.handlePhotoUpload}
         />
-        <ProfileIdentitySummaryCard name={vm.nameDisplay} email={vm.emailDisplay} />
         {vm.profileRatingUi ? (
           <ProfileRatingStarsCard
             ratingTenScale={vm.profileRatingUi.ratingTenScale}

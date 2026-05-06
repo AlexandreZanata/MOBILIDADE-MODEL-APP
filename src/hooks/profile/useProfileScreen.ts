@@ -40,8 +40,12 @@ export function useProfileScreen() {
   const userIsDriver = Boolean(user && isDriver(user));
   const userTypeForUpload: ProfileUserType = userIsDriver ? 'driver' : 'passenger';
 
-  const userName = user?.name || user?.email?.split('@')[0] || tp('unknownUser');
-  const accountType = user?.type ? tProfileUserType(user.type) : tp('unknownUser');
+  const userName = user?.name || user?.email?.split('@')[0] || tp('defaultProfileDisplayName');
+  const accountType = user?.type
+    ? tProfileUserType(user.type)
+    : userIsDriver
+      ? tp('defaultDriverLabel')
+      : tp('defaultPassengerLabel');
   const driverStatus =
     user?.status && isDriverStatusValue(user.status) ? tProfileDriverStatus(user.status) : tp('noInfo');
 

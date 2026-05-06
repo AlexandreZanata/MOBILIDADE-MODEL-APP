@@ -89,6 +89,9 @@ export function useWaitingForDriverScreen({
   const { activeTrip, cancelTrip, refreshTrip, clearTrip } = useTrip();
   const { openChat, closeChat, isChatOpen, currentRideId, updateRideStatus } = useChat();
 
+  // Map zoom (pinch) — must be lifted so TileMap can call onZoom like Home / driver flows.
+  const [mapZoom, setMapZoom] = useState(14);
+
   // ── Domain state ────────────────────────────────────────────────────────
   const [tripStatus, setTripStatus] = useState<string>(activeTrip?.status ?? 'REQUESTED');
   const [driver, setDriver] = useState<DriverSummary | null>(activeTrip?.driver ?? null);
@@ -373,6 +376,8 @@ export function useWaitingForDriverScreen({
   return {
     colors,
     insets,
+    mapZoom,
+    setMapZoom,
     rideId,
     driver,
     tripStatus,

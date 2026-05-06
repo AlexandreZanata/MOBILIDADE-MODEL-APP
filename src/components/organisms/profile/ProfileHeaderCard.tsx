@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import { borders, spacing, typography } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 
 const AVATAR_SIZE = spacing.xxl * 3;
 const CAMERA_BADGE_SIZE = spacing.xxl;
@@ -26,7 +26,7 @@ export function ProfileHeaderCard({
   isDriverAccount,
   onEditPhoto,
 }: ProfileHeaderCardProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const initials = userName
     .split(' ')
     .map((part) => part[0] ?? '')
@@ -43,7 +43,16 @@ export function ProfileHeaderCard({
       paddingBottom: spacing.xxl + spacing.sm,
       paddingHorizontal: spacing.lg,
       marginHorizontal: spacing.md,
-      marginBottom: spacing.xs,
+      marginBottom: spacing.sm,
+      ...(isDark
+        ? {
+            borderWidth: borders.widthHairline,
+            borderColor: colors.border,
+          }
+        : {
+            ...shadows.large,
+            shadowColor: colors.shadow,
+          }),
     },
     inner: { alignItems: 'center', gap: spacing.sm },
     avatarWrap: { position: 'relative' },
@@ -73,19 +82,33 @@ export function ProfileHeaderCard({
       borderWidth: borders.widthHairline,
       borderColor: colors.profileHeroBg,
     },
-    name: { ...typography.title, color: colors.profileHeroText, textAlign: 'center' },
-    email: { ...typography.body, color: colors.profileHeroMuted, textAlign: 'center' },
+    name: {
+      ...typography.title,
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.profileHeroText,
+      textAlign: 'center',
+      letterSpacing: -0.2,
+    },
+    email: {
+      ...typography.body,
+      color: colors.profileHeroMuted,
+      textAlign: 'center',
+      maxWidth: '100%',
+    },
     badge: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      backgroundColor: colors.accent,
+      backgroundColor: 'rgba(255,255,255,0.12)',
+      borderWidth: borders.widthHairline,
+      borderColor: 'rgba(255,255,255,0.24)',
       borderRadius: borders.radiusFull,
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
-      marginTop: spacing.xs,
+      marginTop: spacing.sm,
     },
-    badgeText: { ...typography.caption, fontWeight: '600', color: colors.onAccent },
+    badgeText: { ...typography.caption, fontWeight: '600', color: colors.profileHeroText },
   });
 
   return (
@@ -116,9 +139,9 @@ export function ProfileHeaderCard({
         <Text style={styles.email}>{email}</Text>
         <View style={styles.badge}>
           <Ionicons
-            name={isDriverAccount ? 'shield-checkmark' : 'person'}
+            name={isDriverAccount ? 'shield-checkmark' : 'person-outline'}
             size={spacing.md}
-            color={colors.onAccent}
+            color={colors.profileHeroMuted}
           />
           <Text style={styles.badgeText}>{accountType}</Text>
         </View>

@@ -76,22 +76,35 @@ export function ProfilePersonalInfoSection({
   const { colors } = useTheme();
 
   const styles = StyleSheet.create({
-    wrap: { marginHorizontal: spacing.md, marginTop: spacing.md },
+    wrap: { marginHorizontal: spacing.md, marginTop: spacing.lg },
+    headBlock: { marginBottom: spacing.md },
     headRow: {
       flexDirection: 'row',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
-      marginBottom: spacing.xs,
+      gap: spacing.md,
     },
-    sectionLabel: { ...typography.label, color: colors.textSecondary, flex: 1 },
-    editBtn: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
-    editBtnText: { ...typography.body, fontWeight: '500', color: colors.accent },
-    subtitle: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.md },
+    titleCol: { flex: 1 },
+    sectionTitle: { ...typography.title, fontWeight: '600', color: colors.textPrimary },
+    sectionSubtitle: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+      lineHeight: 18,
+    },
+    editBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borders.radiusFull,
+      backgroundColor: colors.accentSoft,
+    },
+    editBtnText: { ...typography.body, fontWeight: '600', color: colors.accent },
     card: {
       borderWidth: borders.widthHairline,
       borderColor: colors.border,
       borderRadius: borders.radiusLarge,
-      padding: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
     },
     loadingRow: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg },
     loadingText: { ...typography.caption, color: colors.textSecondary },
@@ -174,13 +187,17 @@ export function ProfilePersonalInfoSection({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.headRow}>
-        <Text style={styles.sectionLabel}>{tp('personalInfoTitle')}</Text>
-        <Pressable style={styles.editBtn} onPress={onPressEditSave} accessibilityRole="button">
-          <Text style={styles.editBtnText}>{isEditing ? tp('saveButton') : tp('editButton')}</Text>
-        </Pressable>
+      <View style={styles.headBlock}>
+        <View style={styles.headRow}>
+          <View style={styles.titleCol}>
+            <Text style={styles.sectionTitle}>{tp('personalInfoTitle')}</Text>
+            <Text style={styles.sectionSubtitle}>{tp('personalInfoSubtitle')}</Text>
+          </View>
+          <Pressable style={styles.editBtn} onPress={onPressEditSave} accessibilityRole="button">
+            <Text style={styles.editBtnText}>{isEditing ? tp('saveButton') : tp('editButton')}</Text>
+          </Pressable>
+        </View>
       </View>
-      <Text style={styles.subtitle}>{tp('personalInfoSubtitle')}</Text>
       <Card style={styles.card}>
         {isLoading ? (
           <View style={styles.loadingRow}>

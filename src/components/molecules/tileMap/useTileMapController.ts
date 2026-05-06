@@ -176,11 +176,14 @@ export function useTileMapController({
     PanResponder.create({
       onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
       onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 1,
+      /** Let PinchGestureHandler take over when a second finger lands (closer to Uber/99). */
+      onPanResponderTerminationRequest: () => true,
       onPanResponderGrant: () => {
         pan.setOffset(lastPan.current);
         pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: (_, gesture) => {
+      onPanResponderMove: (e, gesture) => {
+        if (e.nativeEvent.touches.length !== 1) return;
         userMovedMap.current = true;
         onMapMove?.();
         pan.setValue({ x: gesture.dx, y: gesture.dy });
@@ -216,6 +219,8 @@ export function useTileMapController({
       const clamped = Math.min(Math.max(rawZoom, ZOOM_MIN), ZOOM_MAX);
       const snapped = snapZoom(clamped);
       if (snapped !== mapZoomRef.current) {
+        // Optimistic: parent re-render is async; keep ref in sync during the same pinch.
+        mapZoomRef.current = snapped;
         onZoom?.(snapped);
       }
     },

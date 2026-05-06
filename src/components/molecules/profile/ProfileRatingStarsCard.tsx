@@ -18,7 +18,7 @@ export function ProfileRatingStarsCard({ ratingTenScale, displayValue, totalRati
   const { colors } = useTheme();
 
   const styles = StyleSheet.create({
-    wrap: { marginHorizontal: spacing.md, marginTop: spacing.md },
+    wrap: { marginHorizontal: spacing.md, marginTop: spacing.lg },
     card: {
       borderWidth: borders.widthHairline,
       borderColor: colors.border,
@@ -28,7 +28,8 @@ export function ProfileRatingStarsCard({ ratingTenScale, displayValue, totalRati
       justifyContent: 'space-between',
       gap: spacing.md,
     },
-    left: { flex: 1 },
+    left: { flex: 1, gap: spacing.sm },
+    cardTitle: { ...typography.caption, fontWeight: '600', color: colors.textSecondary, letterSpacing: 0.3 },
     right: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     value: { ...typography.subtitle, color: colors.textPrimary, fontWeight: '600' },
     count: { ...typography.caption, color: colors.textSecondary },
@@ -38,6 +39,7 @@ export function ProfileRatingStarsCard({ ratingTenScale, displayValue, totalRati
     <View style={styles.wrap}>
       <Card style={styles.card}>
         <View style={styles.left}>
+          <Text style={styles.cardTitle}>{tp('ratingCardTitle')}</Text>
           <StarRating
             rating={ratingTenScale}
             maxRating={10}

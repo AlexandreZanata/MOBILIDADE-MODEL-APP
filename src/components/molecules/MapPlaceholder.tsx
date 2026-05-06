@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TileMap } from './TileMap';
 
 interface MapPlaceholderProps {
@@ -6,6 +6,7 @@ interface MapPlaceholderProps {
 }
 
 export const MapPlaceholder: React.FC<MapPlaceholderProps> = ({ showRoute = false }) => {
-  return <TileMap showRoute={showRoute} />;
+  const [zoom, setZoom] = useState(14);
+  return <TileMap showRoute={showRoute} zoom={zoom} onZoom={setZoom} />;
 };
 

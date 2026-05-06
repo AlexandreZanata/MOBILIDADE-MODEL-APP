@@ -17,6 +17,7 @@ interface Props {
   destinationLocation: DriverTripCoordinate | null;
   topSpaceHeight: number;
   bottomContainerHeight: number;
+  onZoom: (zoom: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onRecenter: () => void;
@@ -60,6 +61,7 @@ export const DriverTripInProgressMap = memo((props: Props) => {
           bottomContainerHeight={props.bottomContainerHeight}
           topSpaceHeight={props.topSpaceHeight}
           isLocating={false}
+          onZoom={props.onZoom}
         />
       </View>
       <TouchableOpacity style={[styles.fab, { bottom: baseBottom + 64 }]} onPress={props.onZoomIn}>

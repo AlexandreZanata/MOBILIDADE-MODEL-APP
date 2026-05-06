@@ -8,6 +8,7 @@ import { DriverStatus } from '@/models/profile/types';
 const profileMessages = {
   // ── Screen / sections ────────────────────────────────────────────────────
   screenTitle: 'Perfil',
+  screenSubtitle: 'Conta, dados e preferências',
   personalInfoTitle: 'Informações pessoais',
   personalInfoSubtitle: 'Dados cadastrados na sua conta',
   menuTitle: 'Configurações',
@@ -18,7 +19,13 @@ const profileMessages = {
   hideSensitive: 'Ocultar dado',
   loadingData: 'Carregando dados...',
   noInfo: 'Não informado',
-  unknownUser: 'Usuário',
+  /** Fallback quando nome e e-mail ainda não estão disponíveis */
+  defaultProfileDisplayName: 'Passageiro',
+  /** Tipo de conta quando a API não envia `type` (conta de passageiro) */
+  defaultPassengerLabel: 'Passageiro',
+  /** Tipo de conta quando a API não envia `type` mas o perfil é motorista */
+  defaultDriverLabel: 'Motorista',
+  ratingCardTitle: 'Sua avaliação',
 
   // ── Rating ───────────────────────────────────────────────────────────────
   ratingEmpty: '(Sem avaliações ainda)',

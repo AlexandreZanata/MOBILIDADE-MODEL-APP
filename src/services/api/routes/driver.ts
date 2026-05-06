@@ -1,17 +1,51 @@
+import { z } from 'zod';
 import { apiCoreClient } from '../core/client';
 import type { ApiResponse } from '../types/common';
 
+// ─── Zod schemas ──────────────────────────────────────────────────────────────
+
+const DriverOperationalStatusSchema = z.enum(['AVAILABLE', 'BUSY', 'PAUSED', 'OFFLINE']);
+
+const DriverOperationalStatusResponseSchema = z.object({
+  operationalStatus: DriverOperationalStatusSchema,
+  isOnline: z.boolean(),
+  canReceiveRides: z.boolean(),
+});
+
+export type DriverOperationalStatusResponse = z.infer<typeof DriverOperationalStatusResponseSchema>;
+
+/**
+ * Validates and parses the operational status API response.
+ * Returns null if validation fails, logging the error for observability.
+ */
+function parseOperationalStatusResponse(raw: unknown): DriverOperationalStatusResponse | null {
+  const result = DriverOperationalStatusResponseSchema.safeParse(raw);
+  if (!result.success) {
+    console.error('[driverRoutes] Invalid operational status response:', result.error.flatten());
+    return null;
+  }
+  return result.data;
+}
+
 export const driverRoutes = {
-  getDriverOperationalStatus(): Promise<ApiResponse<{ operationalStatus: 'AVAILABLE' | 'BUSY' | 'PAUSED' | 'OFFLINE'; canReceiveRides: boolean }>> {
-    return apiCoreClient.request('/drivers/operational-status', { method: 'GET' });
+  async getDriverOperationalStatus(): Promise<ApiResponse<DriverOperationalStatusResponse>> {
+    const response = await apiCoreClient.request<unknown>('/drivers/operational-status', { method: 'GET' });
+    if (!response.success) return response as ApiResponse<DriverOperationalStatusResponse>;
+    const parsed = parseOperationalStatusResponse(response.data);
+    if (!parsed) return { success: false, message: 'Resposta inválida do servidor' };
+    return { ...response, data: parsed };
   },
-  updateDriverOperationalStatus(
+  async updateDriverOperationalStatus(
     status: 'AVAILABLE' | 'BUSY' | 'PAUSED' | 'OFFLINE'
-  ): Promise<ApiResponse<{ operationalStatus: 'AVAILABLE' | 'BUSY' | 'PAUSED' | 'OFFLINE'; canReceiveRides: boolean }>> {
-    return apiCoreClient.request('/drivers/operational-status', {
+  ): Promise<ApiResponse<DriverOperationalStatusResponse>> {
+    const response = await apiCoreClient.request<unknown>('/drivers/operational-status', {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
+    if (!response.success) return response as ApiResponse<DriverOperationalStatusResponse>;
+    const parsed = parseOperationalStatusResponse(response.data);
+    if (!parsed) return { success: false, message: 'Resposta inválida do servidor' };
+    return { ...response, data: parsed };
   },
   getDriverValidationStatus(): Promise<ApiResponse<unknown>> {
     return apiCoreClient.request('/drivers/validation-status', { method: 'GET' });

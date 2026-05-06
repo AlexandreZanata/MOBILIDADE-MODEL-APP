@@ -17,6 +17,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { spacing, typography, borders, shadows } from '@/theme';
 import { apiService } from '@/services/api';
 import { requestMediaLibraryPermission, requestCameraPermission, openAppSettings } from '@/services/permissionsService';
+import { tp } from '@/i18n/profile';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CROP_SIZE = SCREEN_WIDTH * 0.8;
@@ -46,7 +47,7 @@ interface ProfilePhotoPickerProps {
  */
 export const ProfilePhotoPicker: React.FC<ProfilePhotoPickerProps> = ({
   currentPhotoUrl,
-  userName = 'Usuário',
+  userName,
   userType,
   size = 120,
   onPhotoUpdated,
@@ -54,6 +55,7 @@ export const ProfilePhotoPicker: React.FC<ProfilePhotoPickerProps> = ({
   editable = true,
   maxFileSizeMB = 5,
 }) => {
+  const resolvedDisplayName = userName?.trim() || tp('defaultProfileDisplayName');
   const { colors } = useTheme();
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -479,7 +481,7 @@ export const ProfilePhotoPicker: React.FC<ProfilePhotoPickerProps> = ({
             />
           ) : (
             <View style={styles.initialsContainer}>
-              <Text style={styles.initialsText}>{getInitials(userName)}</Text>
+              <Text style={styles.initialsText}>{getInitials(resolvedDisplayName)}</Text>
             </View>
           )}
 

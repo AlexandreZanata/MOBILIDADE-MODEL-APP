@@ -97,6 +97,7 @@ export const DriverTripInProgressScreen: React.FC<DriverTripInProgressScreenProp
         destinationLocation={vm.view.destinationLocation}
         topSpaceHeight={topBarHeight}
         bottomContainerHeight={infoCardHeight + 64 + Math.max(insets.bottom, 0)}
+        onZoom={vm.handleSetMapZoom}
         onZoomIn={vm.handleZoomIn}
         onZoomOut={vm.handleZoomOut}
         onRecenter={vm.handleRecenter}

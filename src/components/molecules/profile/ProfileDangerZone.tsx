@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
-import { borders, spacing, typography } from '@/theme';
+import { borders, shadows, spacing, typography } from '@/theme';
 import { tp } from '@/i18n/profile';
 
 export interface ProfileDangerZoneProps {
@@ -16,7 +16,7 @@ export function ProfileDangerZone({ onLogoutPress, onDeleteAccountPress, showDel
 
   const styles = StyleSheet.create({
     wrap: {
-      marginTop: spacing.xxl + spacing.sm,
+      marginTop: spacing.xxl,
       marginHorizontal: spacing.md,
       marginBottom: spacing.lg,
       gap: spacing.md,
@@ -27,9 +27,12 @@ export function ProfileDangerZone({ onLogoutPress, onDeleteAccountPress, showDel
       justifyContent: 'center',
       gap: spacing.sm,
       minHeight: spacing.xxl * 2,
+      backgroundColor: colors.card,
       borderWidth: borders.widthHairline,
       borderColor: colors.status.error,
-      borderRadius: borders.radiusMedium,
+      borderRadius: borders.radiusLarge,
+      ...shadows.small,
+      shadowColor: colors.shadow,
     },
     logoutText: { ...typography.button, color: colors.status.error },
     delete: { alignItems: 'center', paddingVertical: spacing.sm },

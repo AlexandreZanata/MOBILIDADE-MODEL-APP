@@ -217,6 +217,7 @@ export function useDriverHomeLocation({ isAvailable, isWebSocketConnected, userI
     currentLocation,
     mapCenter,
     mapZoom,
+    setMapZoom,
     locationError,
     apiError,
     hasUserMovedMap,
