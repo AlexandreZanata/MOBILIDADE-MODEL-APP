@@ -428,6 +428,16 @@ function AppNavigator() {
           name="Main" 
           component={isDriver ? DriverTabs : PassengerTabs} 
         />
+        <Stack.Screen
+          name="VerifyEmail"
+          component={VerifyEmailScreen}
+          options={{
+            headerShown: false,
+            cardStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        />
         <Stack.Screen 
           name="TripPrice" 
           component={TripPriceScreen}

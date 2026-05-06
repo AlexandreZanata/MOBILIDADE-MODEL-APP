@@ -397,6 +397,7 @@ export function useHome({ navigation, selectedPaymentMethodId, selectedCardBrand
       tripData: result.data,
       userLocation: origin,
       destination,
+      destinationName: selectedDestination?.name,
       estimatedFare: selectedCategory?.finalFare ?? result.data.estimatedPrice ?? result.data.estimated_fare ?? null,
     });
   }, [

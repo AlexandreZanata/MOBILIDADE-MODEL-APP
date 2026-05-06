@@ -1,42 +1,19 @@
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { spacing } from '@/theme';
 import { ProfileHeaderCard } from '@/components/organisms/profile/ProfileHeaderCard';
-import { ProfilePersonalInfoCard } from '@/components/organisms/profile/ProfilePersonalInfoCard';
-import { ProfileMenuCard } from '@/components/organisms/profile/ProfileMenuCard';
+import { ProfilePersonalInfoSection } from '@/components/organisms/profile/ProfilePersonalInfoSection';
+import { ProfileSettingsGroups } from '@/components/organisms/profile/ProfileSettingsGroups';
+import { ProfileDangerZone } from '@/components/molecules/profile/ProfileDangerZone';
+import { ProfileLogoutDialog } from '@/components/molecules/profile/ProfileLogoutDialog';
 import { useProfileScreen } from '@/hooks/profile/useProfileScreen';
 
-type RootStackParamList = {
-  Profile: undefined;
-  History: undefined;
-};
-
-interface ProfileScreenProps {
-  navigation: StackNavigationProp<RootStackParamList, 'Profile'>;
-}
-
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
+export const ProfileScreen: React.FC = () => {
   const { colors } = useTheme();
-  const {
-    isLoading,
-    isRefreshing,
-    isUploadingCNH,
-    isUploadingPhoto,
-    userName,
-    accountType,
-    rating,
-    profilePhotoUrl,
-    personalInfo,
-    menuItems,
-    showCnhUpload,
-    handleRefresh,
-    handlePhotoUpload,
-    handleUploadCnh,
-    onMenuAction,
-  } = useProfileScreen(navigation);
+  const insets = useSafeAreaInsets();
+  const vm = useProfileScreen();
 
   const styles = StyleSheet.create({
     safeArea: {
@@ -48,7 +25,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       backgroundColor: colors.background,
     },
     contentContainer: {
-      paddingVertical: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.md + insets.bottom,
     },
   });
 
@@ -57,29 +35,64 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={[colors.primary]} />}
+        refreshControl={
+          <RefreshControl refreshing={vm.isRefreshing} onRefresh={vm.handleRefresh} colors={[colors.primary]} />
+        }
       >
         <ProfileHeaderCard
-          userName={userName}
-          accountType={accountType}
-          profilePhotoUrl={profilePhotoUrl}
-          isUploadingPhoto={isUploadingPhoto}
-          currentRating={rating?.currentRating}
-          totalRatings={rating?.totalRatings}
-          onEditPhoto={handlePhotoUpload}
+          userName={vm.userName}
+          accountType={vm.accountType}
+          profilePhotoUrl={vm.profilePhotoUrl}
+          isUploadingPhoto={vm.isUploadingPhoto}
+          isDriverAccount={vm.userIsDriver}
+          ratingLine={vm.ratingLine}
+          onEditPhoto={vm.handlePhotoUpload}
         />
-        <ProfilePersonalInfoCard
-          items={personalInfo}
-          isLoading={isLoading}
-          showCnhUpload={showCnhUpload}
-          isUploadingCNH={isUploadingCNH}
-          onUploadCnh={handleUploadCnh}
+        <ProfilePersonalInfoSection
+          isLoading={vm.isLoading}
+          isCollapsed={vm.personalCollapsed}
+          onToggleCollapsed={() => vm.setPersonalCollapsed((c) => !c)}
+          isEditing={vm.isEditingPersonal}
+          onPressEditSave={vm.onPressEditSave}
+          draftName={vm.draftName}
+          onChangeDraftName={vm.setDraftName}
+          draftEmail={vm.draftEmail}
+          onChangeDraftEmail={vm.setDraftEmail}
+          draftPhone={vm.draftPhone}
+          onChangeDraftPhone={vm.setDraftPhone}
+          draftBirthDate={vm.draftBirthDate}
+          onChangeDraftBirthDate={vm.setDraftBirthDate}
+          nameDisplay={vm.nameDisplay}
+          emailDisplay={vm.emailDisplay}
+          emailVerified={vm.emailVerified}
+          birthDisplay={vm.birthDisplay}
+          cpfLabel={vm.cpfLabel}
+          phoneLabel={vm.phoneLabel}
+          cpfShown={vm.cpfShown}
+          phoneShown={vm.phoneShown}
+          revealedCpf={vm.revealedCpf}
+          revealedPhone={vm.revealedPhone}
+          onToggleReveal={vm.onToggleReveal}
+          onPressVerifyEmail={vm.onVerifyEmail}
+          showCnhUpload={vm.showCnhUpload}
+          isUploadingCNH={vm.isUploadingCNH}
+          onUploadCnh={vm.handleUploadCnh}
+          driverRows={vm.driverRows}
         />
         <View>
-          <ProfileMenuCard items={menuItems} onAction={onMenuAction} />
+          <ProfileSettingsGroups groups={vm.settingsGroups} onRowPress={vm.onSettingsRow} />
         </View>
+        <ProfileDangerZone
+          onLogoutPress={() => vm.setLogoutDialogVisible(true)}
+          onDeleteAccountPress={vm.onDeleteAccount}
+          showDeleteAccount={vm.showDeleteAccount}
+        />
       </ScrollView>
+      <ProfileLogoutDialog
+        visible={vm.logoutDialogVisible}
+        onDismiss={() => vm.setLogoutDialogVisible(false)}
+        onConfirm={vm.onConfirmLogout}
+      />
     </SafeAreaView>
   );
 };
-

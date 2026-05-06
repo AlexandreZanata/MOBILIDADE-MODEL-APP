@@ -1,103 +1,81 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
+import { Alert, Appearance } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
+import { useProfileMediaActions } from '@/hooks/profile/useProfileMediaActions';
+import { useTheme } from '@/context/ThemeContext';
 import { isDriver } from '@/models/User';
 import { API_BASE_URL } from '@/services/api';
 import { getProfileImageUrl } from '@/services/profileImageCache';
 import { openAppSettings } from '@/services/permissionsService';
 import { profileService } from '@/services/profile/profileService';
+import { requestNotificationPermissions } from '@/services/notificationService/permissions';
+import { getProfileSettingsGroups } from '@/models/profile/settingsGroups';
+import { maskCpfDisplay, maskPhoneDisplay } from '@/models/profile/maskSensitive';
 import { tp, tProfileDriverStatus, tProfileUserType } from '@/i18n/profile';
-import { DriverStatus, ProfileMenuItem, ProfileRating, ProfileUserType } from '@/models/profile/types';
+import { ProfileDriverFieldRow, ProfileMenuAction, ProfileRating, ProfileUserType } from '@/models/profile/types';
+import { formatProfileDate, isDriverStatusValue } from '@/hooks/profile/profileScreenHelpers';
 
-interface NavigationShape {
-  navigate(route: 'History'): void;
-}
-
-interface UserInfoItem {
-  id: string;
-  label: string;
-  value: string;
-  verified?: boolean;
-}
-
-function formatDate(value?: string): string {
-  if (!value) return tp('noInfo');
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR');
-}
-
-const DRIVER_STATUS_VALUES: DriverStatus[] = [
-  'ONBOARDING',
-  'AWAITING_CNH',
-  'CNH_REVIEW',
-  'AWAITING_VEHICLE',
-  'VEHICLE_REVIEW',
-  'ACTIVE',
-  'INACTIVE',
-  'SUSPENDED',
-];
-
-function isDriverStatus(value: string): value is DriverStatus {
-  return DRIVER_STATUS_VALUES.some((status) => status === value);
-}
-
-export function useProfileScreen(navigation: NavigationShape) {
+export function useProfileScreen() {
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const { isDark } = useTheme();
   const ensureToken = useTokenRefresh();
   const { user, logout, refreshUserData, isLoading } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isUploadingCNH, setIsUploadingCNH] = useState(false);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [rating, setRating] = useState<ProfileRating | null>(null);
   const [cachedPhotoUrl, setCachedPhotoUrl] = useState<string | undefined>(undefined);
+  const [notifGranted, setNotifGranted] = useState(false);
+  const [personalCollapsed, setPersonalCollapsed] = useState(false);
+  const [revealedCpf, setRevealedCpf] = useState(false);
+  const [revealedPhone, setRevealedPhone] = useState(false);
+  const [isEditingPersonal, setIsEditingPersonal] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftEmail, setDraftEmail] = useState('');
+  const [draftPhone, setDraftPhone] = useState('');
+  const [draftBirthDate, setDraftBirthDate] = useState('');
+  const [logoutDialogVisible, setLogoutDialogVisible] = useState(false);
 
   const userIsDriver = Boolean(user && isDriver(user));
   const userTypeForUpload: ProfileUserType = userIsDriver ? 'driver' : 'passenger';
 
   const userName = user?.name || user?.email?.split('@')[0] || tp('unknownUser');
   const accountType = user?.type ? tProfileUserType(user.type) : tp('unknownUser');
-  const driverStatus = user?.status && isDriverStatus(user.status) ? tProfileDriverStatus(user.status) : tp('noInfo');
+  const driverStatus =
+    user?.status && isDriverStatusValue(user.status) ? tProfileDriverStatus(user.status) : tp('noInfo');
 
-  const menuItems: ProfileMenuItem[] = useMemo(
-    () => [
-      { id: '1', title: tp('paymentMethods'), icon: 'card-outline', showChevron: true, action: 'payment-methods' },
-      { id: '2', title: tp('history'), icon: 'time-outline', showChevron: true, action: 'history' },
-      { id: '3', title: tp('savedAddresses'), icon: 'location-outline', showChevron: true, action: 'saved-addresses' },
-      { id: '4', title: tp('coupons'), icon: 'pricetag-outline', showChevron: true, action: 'coupons', badge: 3 },
-      { id: '5', title: tp('help'), icon: 'help-circle-outline', showChevron: true, action: 'help' },
-      { id: '6', title: tp('about'), icon: 'information-circle-outline', showChevron: true, action: 'about' },
-      { id: '7', title: tp('logoutConfirm'), icon: 'log-out-outline', showChevron: false, action: 'logout' },
-    ],
-    []
-  );
-
-  const personalInfo: UserInfoItem[] = useMemo(() => {
-    if (!user) return [];
-    const items: UserInfoItem[] = [
-      { id: 'name', label: tp('name'), value: userName },
-      { id: 'email', label: tp('email'), value: user.email || tp('noInfo'), verified: Boolean(user.emailVerified) },
-      { id: 'cpf', label: tp('cpf'), value: user.cpf || tp('noInfo') },
-      { id: 'phone', label: tp('phone'), value: user.phone || tp('noInfo') },
-      { id: 'birthDate', label: tp('birthDate'), value: formatDate(user.birthDate) },
-      { id: 'accountType', label: tp('accountType'), value: accountType },
+  const driverRows: ProfileDriverFieldRow[] = useMemo(() => {
+    if (!user || !userIsDriver) return [];
+    return [
+      { id: 'cnhNumber', label: tp('cnhNumber'), value: user.cnhNumber || tp('noInfo') },
+      { id: 'cnhCategory', label: tp('cnhCategory'), value: user.cnhCategory || tp('noInfo') },
+      { id: 'cnhExpiration', label: tp('cnhExpirationDate'), value: formatProfileDate(user.cnhExpirationDate) },
+      { id: 'driverStatus', label: tp('driverStatus'), value: driverStatus },
     ];
+  }, [driverStatus, user, userIsDriver]);
 
-    if (userIsDriver) {
-      items.push(
-        { id: 'cnhNumber', label: tp('cnhNumber'), value: user.cnhNumber || tp('noInfo') },
-        { id: 'cnhCategory', label: tp('cnhCategory'), value: user.cnhCategory || tp('noInfo') },
-        { id: 'cnhExpiration', label: tp('cnhExpirationDate'), value: formatDate(user.cnhExpirationDate) },
-        { id: 'driverStatus', label: tp('driverStatus'), value: driverStatus }
-      );
-    }
-    return items;
-  }, [accountType, driverStatus, user, userIsDriver, userName]);
+  const cpfRaw = user?.cpf?.trim() ?? '';
+  const phoneRaw = user?.phone?.trim() ?? '';
+  const cpfShown = useMemo(() => {
+    if (!cpfRaw) return tp('noInfo');
+    return revealedCpf ? cpfRaw : maskCpfDisplay(cpfRaw);
+  }, [cpfRaw, revealedCpf]);
+
+  const phoneShown = useMemo(() => {
+    if (!phoneRaw) return tp('noInfo');
+    return revealedPhone ? phoneRaw : maskPhoneDisplay(phoneRaw);
+  }, [phoneRaw, revealedPhone]);
+
+  const ratingLine = useMemo(() => {
+    if (!rating || rating.totalRatings < 1) return undefined;
+    const r = Number(rating.currentRating);
+    if (Number.isNaN(r) || r <= 0) return undefined;
+    return tp('ratingWithRides', { rating: r.toFixed(1), count: String(rating.totalRatings) });
+  }, [rating]);
 
   const profilePhotoUrl = useMemo(() => {
-    // cachedPhotoUrl takes priority — it is set immediately after a successful
-    // upload or after refreshProfile resolves, so it always reflects the latest state.
     if (cachedPhotoUrl) return cachedPhotoUrl;
     if (!user?.photoUrl) return undefined;
     const profileId = user.userId || user.id;
@@ -123,146 +101,141 @@ export function useProfileScreen(navigation: NavigationShape) {
       } else {
         setCachedPhotoUrl(undefined);
       }
+      const perm = await Notifications.getPermissionsAsync();
+      setNotifGranted(perm.status === 'granted');
     } finally {
       setIsRefreshing(false);
     }
   }, [ensureToken, refreshUserData, user, userIsDriver]);
 
+  const onProfilePhotoCached = useCallback((url: string) => {
+    setCachedPhotoUrl(url);
+  }, []);
+
+  const { isUploadingCNH, isUploadingPhoto, handlePhotoUpload, handleUploadCnh } = useProfileMediaActions({
+    ensureToken,
+    refreshUserData,
+    userTypeForUpload,
+    profilePhotoUserId: user?.userId || user?.id,
+    onProfilePhotoCached,
+    onAfterCnhUpload: refreshProfile,
+  });
+
   useFocusEffect(
     useCallback(() => {
-      refreshProfile();
+      void refreshProfile();
+      return () => {
+        setRevealedCpf(false);
+        setRevealedPhone(false);
+        setIsEditingPersonal(false);
+      };
     }, [refreshProfile])
   );
 
-  const uploadCnh = useCallback(
-    async (fileUri: string) => {
-      setIsUploadingCNH(true);
-      try {
-        await ensureToken();
-        const result = await profileService.uploadDocumentCnh(fileUri);
-        if (!result.success) {
-          Alert.alert(tp('genericErrorTitle'), result.error?.message || tp('genericErrorDescription'));
-          return;
-        }
-        Alert.alert(tp('uploadSuccessTitle'), tp('uploadCnhSuccessDescription'));
-        await refreshProfile();
-      } finally {
-        setIsUploadingCNH(false);
+  const onNotificationsToggle = useCallback(async (next: boolean) => {
+    if (next) {
+      const ok = await requestNotificationPermissions();
+      setNotifGranted(ok);
+      if (!ok) {
+        Alert.alert(tp('permissionTitle'), tp('notificationsPermissionDescription'));
       }
-    },
-    [ensureToken, refreshProfile]
-  );
-
-  const processPickerResult = useCallback(
-    async (
-      result: ImagePicker.ImagePickerResult,
-      onFile: (fileUri: string) => Promise<void>
-    ) => {
-      if (result.canceled) return;
-      const uri = result.assets?.[0]?.uri;
-      if (!uri) return;
-      try {
-        await onFile(uri);
-      } catch {
-        Alert.alert(tp('genericErrorTitle'), tp('genericErrorDescription'));
-      }
-    },
-    []
-  );
-
-  const requestUploadSource = useCallback(
-    (onFile: (fileUri: string) => Promise<void>) => {
-      Alert.alert(tp('chooseImageTitle'), tp('chooseImageDescription'), [
-        {
-          text: tp('gallery'),
-          onPress: () => {
-            void (async () => {
-              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== 'granted') {
-                Alert.alert(tp('permissionTitle'), tp('mediaPermissionDescription'), [
-                  { text: tp('cancel'), style: 'cancel' },
-                  { text: tp('openSettings'), onPress: () => openAppSettings() },
-                ]);
-                return;
-              }
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: 'images',
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-              });
-              await processPickerResult(result, onFile);
-            })();
-          },
-        },
-        {
-          text: tp('camera'),
-          onPress: () => {
-            void (async () => {
-              const { status } = await ImagePicker.requestCameraPermissionsAsync();
-              if (status !== 'granted') {
-                Alert.alert(tp('permissionTitle'), tp('cameraPermissionDescription'), [
-                  { text: tp('cancel'), style: 'cancel' },
-                  { text: tp('openSettings'), onPress: () => openAppSettings() },
-                ]);
-                return;
-              }
-              const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: 'images',
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-              });
-              await processPickerResult(result, onFile);
-            })();
-          },
-        },
-        { text: tp('cancel'), style: 'cancel' },
-      ]);
-    },
-    [processPickerResult]
-  );
-
-  const handlePhotoUpload = useCallback(() => {
-    requestUploadSource(async (fileUri) => {
-      setIsUploadingPhoto(true);
-      try {
-        await ensureToken();
-        const response = await profileService.uploadProfilePhoto(fileUri, userTypeForUpload);
-        if (!response.success) {
-          Alert.alert(tp('genericErrorTitle'), response.error?.message || tp('genericErrorDescription'));
-          return;
-        }
-        // Force-refresh user data so user.photoUrl is updated immediately,
-        // bypassing the TTL cache that would otherwise skip the API call.
-        await refreshUserData(true);
-        // Now rebuild the photo URL with the fresh user data and bust the cache.
-        const profileId = user?.userId || user?.id;
-        if (profileId) {
-          const freshUrl = `${API_BASE_URL}/profile-photos/${profileId}?t=${Date.now()}`;
-          setCachedPhotoUrl(freshUrl);
-        }
-      } finally {
-        setIsUploadingPhoto(false);
-      }
-    });
-  }, [ensureToken, refreshUserData, requestUploadSource, user?.id, user?.userId, userTypeForUpload]);
-
-  const handleUploadCnh = useCallback(() => requestUploadSource(uploadCnh), [requestUploadSource, uploadCnh]);
-  const onMenuAction = useCallback((action: ProfileMenuItem['action']) => {
-    if (action === 'history') {
-      navigation.navigate('History');
       return;
     }
-    if (action === 'logout') {
-      Alert.alert(tp('logoutTitle'), tp('logoutDescription'), [
-        { text: tp('cancel'), style: 'cancel' },
-        { text: tp('logoutConfirm'), style: 'destructive', onPress: () => logout() },
-      ]);
-    }
-  }, [logout, navigation]);
+    setNotifGranted(false);
+    Alert.alert(tp('notificationsOffTitle'), tp('notificationsOffBody'), [
+      { text: tp('cancel'), style: 'cancel' },
+      { text: tp('openSettings'), onPress: () => openAppSettings() },
+    ]);
+  }, []);
 
-  const showCnhUpload = userIsDriver && (!user?.cnhNumber || user.status === 'AWAITING_CNH' || user.status === 'ONBOARDING');
+  const onDarkModeToggle = useCallback((next: boolean) => {
+    Appearance.setColorScheme(next ? 'dark' : 'light');
+  }, []);
+
+  const couponsBadgeCount = useMemo<number | undefined>(() => undefined, []);
+
+  const settingsGroups = useMemo(
+    () =>
+      getProfileSettingsGroups(
+        notifGranted,
+        onNotificationsToggle,
+        isDark,
+        onDarkModeToggle,
+        couponsBadgeCount
+      ),
+    [couponsBadgeCount, isDark, notifGranted, onDarkModeToggle, onNotificationsToggle]
+  );
+
+  const onSettingsRow = useCallback(
+    (action: ProfileMenuAction) => {
+      if (action === 'history') {
+        if (userIsDriver) {
+          navigation.navigate('DriverRides' as never);
+        } else {
+          navigation.navigate('History' as never);
+        }
+        return;
+      }
+      if (action === 'notifications' || action === 'dark-mode') {
+        return;
+      }
+      if (action === 'language') {
+        Alert.alert(tp('language'), tp('languageCurrentPtBr'));
+        return;
+      }
+      Alert.alert(tp('genericErrorTitle'), tp('featureUnavailable'));
+    },
+    [navigation, userIsDriver]
+  );
+
+  const onVerifyEmail = useCallback(() => {
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: 'VerifyEmail',
+        params: {
+          email: user?.email,
+          userType: userIsDriver ? 'driver' : 'passenger',
+        },
+      })
+    );
+  }, [navigation, user?.email, userIsDriver]);
+
+  const onToggleReveal = useCallback((field: 'cpf' | 'phone') => {
+    if (field === 'cpf') setRevealedCpf((v) => !v);
+    else setRevealedPhone((v) => !v);
+  }, []);
+
+  const onPressEditSave = useCallback(() => {
+    if (!user) return;
+    if (!isEditingPersonal) {
+      setDraftName(user.name || '');
+      setDraftEmail(user.email || '');
+      setDraftPhone(user.phone || '');
+      setDraftBirthDate(user.birthDate || '');
+      setIsEditingPersonal(true);
+      return;
+    }
+    Alert.alert(tp('genericErrorTitle'), tp('profileUpdateUnavailable'));
+    setIsEditingPersonal(false);
+  }, [isEditingPersonal, user]);
+
+  const showCnhUpload =
+    Boolean(user) &&
+    userIsDriver &&
+    (!user?.cnhNumber || user?.status === 'AWAITING_CNH' || user?.status === 'ONBOARDING');
+
+  const showDeleteAccount = false;
+
+  const onDeleteAccount = useCallback(() => {
+    Alert.alert(tp('deleteAccountTitle'), tp('deleteAccountDescription'), [
+      { text: tp('cancel'), style: 'cancel' },
+      { text: tp('deleteAccountConfirm'), style: 'destructive', onPress: () => undefined },
+    ]);
+  }, []);
+
+  const onConfirmLogout = useCallback(() => {
+    void logout();
+  }, [logout]);
 
   return {
     isLoading,
@@ -272,15 +245,44 @@ export function useProfileScreen(navigation: NavigationShape) {
     userName,
     accountType,
     userTypeForUpload,
-    rating,
+    ratingLine,
     profilePhotoUrl,
-    personalInfo,
-    menuItems,
-    showCnhUpload,
     userIsDriver,
+    settingsGroups,
+    showCnhUpload,
+    personalCollapsed,
+    setPersonalCollapsed,
+    isEditingPersonal,
+    draftName,
+    setDraftName,
+    draftEmail,
+    setDraftEmail,
+    draftPhone,
+    setDraftPhone,
+    draftBirthDate,
+    setDraftBirthDate,
+    nameDisplay: userName,
+    emailDisplay: user?.email || tp('noInfo'),
+    emailVerified: Boolean(user?.emailVerified),
+    birthDisplay: formatProfileDate(user?.birthDate),
+    cpfLabel: tp('cpf'),
+    phoneLabel: tp('phone'),
+    cpfShown,
+    phoneShown,
+    revealedCpf,
+    revealedPhone,
+    driverRows,
     handleRefresh: refreshProfile,
     handlePhotoUpload,
     handleUploadCnh,
-    onMenuAction,
+    onSettingsRow,
+    onVerifyEmail,
+    onToggleReveal,
+    onPressEditSave,
+    logoutDialogVisible,
+    setLogoutDialogVisible,
+    onConfirmLogout,
+    showDeleteAccount,
+    onDeleteAccount,
   };
 }

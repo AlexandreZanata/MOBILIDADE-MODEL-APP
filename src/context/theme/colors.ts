@@ -14,6 +14,7 @@ export const lightColors: ThemeColors = {
   border: '#EBEBEB',
   shadow: 'rgba(0,0,0,0.12)',
   mapBg: '#E8F0E8',
+  scrim: 'rgba(0,0,0,0.5)',
   status: {
     success: '#3B6D11',
     error: '#A32D2D',
@@ -36,6 +37,7 @@ export const darkColors: ThemeColors = {
   border: '#3A3A3C',
   shadow: 'rgba(0,0,0,0.0)',
   mapBg: '#1A2420',
+  scrim: 'rgba(0,0,0,0.6)',
   status: {
     success: '#639922',
     error: '#E24B4A',

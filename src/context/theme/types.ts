@@ -20,6 +20,8 @@ export interface ThemeColors {
   shadow: string;
   /** Map base fill */
   mapBg: string;
+  /** Modal / dialog scrim */
+  scrim: string;
   status: {
     success: string;
     error: string;

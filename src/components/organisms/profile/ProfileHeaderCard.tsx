@@ -1,19 +1,20 @@
 import React from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/atoms/Card';
-import { StarRatingBadge } from '@/components/atoms/StarRating';
 import { useTheme } from '@/context/ThemeContext';
 import { borders, spacing, typography } from '@/theme';
-import { tp } from '@/i18n/profile';
+
+const AVATAR_SIZE = spacing.xxl * 3;
+const CAMERA_BADGE_SIZE = spacing.xxl;
 
 interface ProfileHeaderCardProps {
   userName: string;
   accountType: string;
   profilePhotoUrl?: string;
   isUploadingPhoto: boolean;
-  currentRating?: string;
-  totalRatings?: number;
+  isDriverAccount: boolean;
+  ratingLine?: string;
   onEditPhoto(): void;
 }
 
@@ -22,8 +23,8 @@ export function ProfileHeaderCard({
   accountType,
   profilePhotoUrl,
   isUploadingPhoto,
-  currentRating,
-  totalRatings = 0,
+  isDriverAccount,
+  ratingLine,
   onEditPhoto,
 }: ProfileHeaderCardProps) {
   const { colors } = useTheme();
@@ -36,80 +37,82 @@ export function ProfileHeaderCard({
 
   const styles = StyleSheet.create({
     card: { marginHorizontal: spacing.md },
-    center: { alignItems: 'center', gap: spacing.sm },
+    inner: { alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xxl },
+    avatarWrap: { position: 'relative' },
     avatar: {
-      width: spacing.xxl + spacing.xxl,
-      height: spacing.xxl + spacing.xxl,
+      width: AVATAR_SIZE,
+      height: AVATAR_SIZE,
       borderRadius: borders.radiusFull,
       backgroundColor: colors.backgroundSecondary,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      borderWidth: borders.profileAvatarBorderWidth,
+      borderColor: colors.accent,
     },
     avatarImage: { width: '100%', height: '100%' },
     initials: { ...typography.h1, color: colors.primary },
-    name: { ...typography.h2, color: colors.textPrimary },
+    camBadge: {
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      width: CAMERA_BADGE_SIZE,
+      height: CAMERA_BADGE_SIZE,
+      borderRadius: CAMERA_BADGE_SIZE / 2,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: borders.widthHairline,
+      borderColor: colors.card,
+    },
+    name: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
     badge: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      backgroundColor: colors.backgroundSecondary,
+      backgroundColor: colors.accentSoft,
       borderRadius: borders.radiusFull,
-      paddingHorizontal: spacing.sm,
+      paddingHorizontal: spacing.md,
       paddingVertical: spacing.xs,
     },
-    badgeText: { ...typography.caption, color: colors.textPrimary },
-    editButton: {
-      flexDirection: 'row',
-      gap: spacing.xs,
-      alignItems: 'center',
-      backgroundColor: colors.primary,
-      borderRadius: borders.radiusMedium,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-    },
-    editText: { ...typography.button, color: colors.card },
-    ratingText: { ...typography.caption, color: colors.textSecondary },
+    badgeText: { ...typography.caption, fontWeight: '500', color: colors.accent },
+    ratingText: { ...typography.caption, color: colors.textSecondary, textAlign: 'center' },
   });
 
   return (
     <Card style={styles.card}>
-      <View style={styles.center}>
-        <View style={styles.avatar}>
-          {profilePhotoUrl ? (
-            <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} resizeMode="cover" />
-          ) : (
-            <Text style={styles.initials}>{initials}</Text>
-          )}
-        </View>
+      <View style={styles.inner}>
+        <Pressable
+          onPress={onEditPhoto}
+          disabled={isUploadingPhoto}
+          accessibilityRole="button"
+          style={styles.avatarWrap}
+        >
+          <View style={styles.avatar}>
+            {profilePhotoUrl ? (
+              <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} resizeMode="cover" />
+            ) : (
+              <Text style={styles.initials}>{initials}</Text>
+            )}
+          </View>
+          <View style={styles.camBadge}>
+            {isUploadingPhoto ? (
+              <ActivityIndicator size="small" color={colors.card} />
+            ) : (
+              <Ionicons name="camera" size={spacing.md} color={colors.card} />
+            )}
+          </View>
+        </Pressable>
         <Text style={styles.name}>{userName}</Text>
         <View style={styles.badge}>
-          <Ionicons name="person" size={spacing.md} color={colors.secondary} />
+          <Ionicons
+            name={isDriverAccount ? 'shield-checkmark' : 'person'}
+            size={spacing.md}
+            color={colors.accent}
+          />
           <Text style={styles.badgeText}>{accountType}</Text>
         </View>
-        {typeof currentRating === 'string' && (
-          <>
-            <StarRatingBadge rating={Number(currentRating) || 0} maxRating={10} starCount={5} starSize={spacing.md} />
-            <Text style={styles.ratingText}>
-              {totalRatings > 0
-                ? tp('ratingCount', {
-                    count: String(totalRatings),
-                    label: totalRatings === 1 ? tp('ratingSingle') : tp('ratingPlural'),
-                  })
-                : tp('ratingEmpty')}
-            </Text>
-          </>
-        )}
-        <TouchableOpacity onPress={onEditPhoto} style={styles.editButton} activeOpacity={0.8} disabled={isUploadingPhoto}>
-          {isUploadingPhoto ? (
-            <ActivityIndicator size="small" color={colors.card} />
-          ) : (
-            <>
-              <Ionicons name="camera-outline" size={spacing.md} color={colors.card} />
-              <Text style={styles.editText}>{tp('uploadPhotoTitle')}</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {ratingLine ? <Text style={styles.ratingText}>{ratingLine}</Text> : null}
       </View>
     </Card>
   );

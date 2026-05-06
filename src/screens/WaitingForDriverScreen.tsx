@@ -14,11 +14,23 @@ import { useWaitingForDriverScreen } from '@/hooks/waitingForDriver/useWaitingFo
 
 // ─── Navigation types ─────────────────────────────────────────────────────────
 
+/** Coordinates passed from the home screen at ride creation time. */
+interface NavLatLng {
+  lat: number;
+  lng: number;
+}
+
 type WaitingForDriverNavigationParams = {
   WaitingForDriver: {
     tripId?: string;
     estimatedFare?: number;
     tripData?: { id?: string; estimated_fare?: number; final_fare?: number };
+    /** Origin coordinates — set by useHome at requestTrip time. */
+    userLocation?: NavLatLng;
+    /** Destination coordinates — set by useHome at requestTrip time. */
+    destination?: NavLatLng;
+    /** Destination display name — set by useHome at requestTrip time. */
+    destinationName?: string;
   };
   Main: undefined;
 };
@@ -30,6 +42,9 @@ interface WaitingForDriverScreenProps {
       tripId?: string;
       estimatedFare?: number;
       tripData?: { id?: string; estimated_fare?: number; final_fare?: number };
+      userLocation?: NavLatLng;
+      destination?: NavLatLng;
+      destinationName?: string;
     };
   };
 }
@@ -40,12 +55,30 @@ export const WaitingForDriverScreen: React.FC<WaitingForDriverScreenProps> = ({
   navigation,
   route,
 }) => {
+  const params = route?.params;
+
+  // Origin: from nav params (set by useHome at ride creation)
+  const navOrigin = params?.userLocation
+    ? { lat: params.userLocation.lat, lon: params.userLocation.lng }
+    : undefined;
+
+  // Destination: from nav params (set by useHome at ride creation)
+  const navDestination = params?.destination
+    ? { lat: params.destination.lat, lon: params.destination.lng }
+    : undefined;
+
   const state = useWaitingForDriverScreen({
-    initialTripId: route?.params?.tripId ?? route?.params?.tripData?.id,
+    initialTripId: params?.tripId ?? params?.tripData?.id,
     initialEstimatedFare:
-      route?.params?.estimatedFare ??
-      route?.params?.tripData?.estimated_fare ??
-      route?.params?.tripData?.final_fare,
+      params?.estimatedFare ??
+      params?.tripData?.estimated_fare ??
+      params?.tripData?.final_fare,
+    /** Origin coords from navigation — used immediately before API polling resolves. */
+    navOrigin,
+    /** Destination coords from navigation — used immediately before API polling resolves. */
+    navDestination,
+    /** Destination name from navigation — shown while reverse geocoding runs. */
+    navDestinationName: params?.destinationName,
     onNavigateMain: () => navigation.navigate('Main'),
   });
 
