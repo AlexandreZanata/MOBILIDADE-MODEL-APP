@@ -218,7 +218,7 @@ class TripsService {
         status: rideData.status || 'PENDING',
         origin: request.origin,
         destination: request.destination,
-        estimated_fare: rideData.estimatedPrice,
+        estimated_fare: rideData.estimatedPrice ?? 0,
         final_fare: rideData.finalPrice,
         distance_km: rideData.distanceKm,
         duration_seconds: rideData.durationMinutes ? rideData.durationMinutes * 60 : undefined,
@@ -235,7 +235,12 @@ class TripsService {
       };
     }
 
-    return response as ApiResponse<Trip>;
+    return {
+      success: response.success,
+      error: response.error,
+      message: response.message,
+      status: response.status,
+    };
   }
 
 

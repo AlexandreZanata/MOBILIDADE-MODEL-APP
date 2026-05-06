@@ -1,3 +1,204 @@
+# WebSocket System for Realtime Tracking and Notifications
+
+## Overview
+
+The WebSocket layer provides bidirectional realtime communication for:
+
+- Drivers: location updates, operational status, and ride offer responses
+- Passengers: ride lifecycle notifications and optional live location sharing
+
+The system uses Redis GEO for position storage and H3 for spatial indexing.
+
+## Connection Endpoints
+
+### Drivers
+
+- `ws://host:port/ws/drivers?token=<JWT_TOKEN>`
+- Role required: `driver`
+
+### Passengers
+
+- `ws://host:port/ws/passengers?token=<JWT_TOKEN>`
+- Role required: `passenger`
+
+## Driver -> Server Events
+
+### `location_update`
+
+Required fields:
+
+- `lat`
+- `lng`
+
+Optional fields:
+
+- `heading`
+- `speed`
+
+Behavior:
+
+- Updates Redis GEO (`drivers_live`)
+- Updates H3 cell membership
+- Renews heartbeat TTL
+
+### `heartbeat`
+
+Behavior:
+
+- Renews connection/status TTL
+- Prevents offline timeout
+
+### `status_update`
+
+Payload:
+
+- `status`: `AVAILABLE | BUSY | PAUSED | OFFLINE`
+
+### `ride_response`
+
+Payload:
+
+- `rideId`
+- `action`: `accept | reject`
+
+Behavior:
+
+- Atomic acceptance/rejection with Redis locking
+- Prevents multiple drivers accepting the same ride
+
+## Passenger -> Server Events
+
+### `location_update`
+
+Used for live passenger location sharing during active rides.
+Stored in Redis GEO (`passengers_live`) with short TTL.
+
+## Server -> Driver Events
+
+- `connected`
+- `active_ride` (on reconnect with active ride state)
+- `ride_offer`
+- `status_updated`
+- `location_update` / `location_updated` acknowledgements
+- `pong`
+- `passenger_location` (periodic during active rides)
+- `error`
+
+## Server -> Passenger Events
+
+- `connected`
+- `ride_driver_accepted`
+- `ride_driver_on_the_way`
+- `ride_driver_nearby`
+- `ride_driver_arrived`
+- `ride_status_update`
+- `ride_cancelled`
+- `error`
+
+## Driver State Model
+
+### Connection state (system-managed)
+
+- `online`: connected + recent heartbeat
+- `offline`: disconnected or stale heartbeat
+
+### Operational state (driver-managed)
+
+- `AVAILABLE`
+- `BUSY`
+- `PAUSED`
+- `OFFLINE`
+
+Driver can receive rides only when:
+
+- connection state is online
+- operational status is `AVAILABLE`
+
+## Redis Data Structures
+
+- `drivers_live` (GEO): current driver positions
+- `drivers_status:{driverId}`: online/offline marker (short TTL)
+- `drivers_connection:{driverId}`: active socket marker
+- `drivers_operational_status:{driverId}`: operational status (long TTL)
+- `h3:cell:{h3Index}`: drivers per H3 cell
+- `passengers_live` (GEO): passenger positions (short TTL)
+
+### Dispatch keys
+
+- `ride_dispatch:{rideId}`
+- `ride_offer:{rideId}:{driverId}`
+- `lock:ride:{rideId}`
+- `lock:driver:{driverId}`
+
+## Related REST Endpoints
+
+Driver operational status:
+
+- `GET /v1/drivers/operational-status`
+- `PATCH /v1/drivers/operational-status`
+
+Ride progression updates:
+
+- `PATCH /v1/drivers/rides/{rideId}/on-the-way`
+- `PATCH /v1/drivers/rides/{rideId}/nearby`
+- `PATCH /v1/drivers/rides/{rideId}/arrived`
+- `PATCH /v1/drivers/rides/{rideId}/boarded`
+- `PATCH /v1/drivers/rides/{rideId}/in-route`
+- `PATCH /v1/drivers/rides/{rideId}/near-destination`
+- `PATCH /v1/drivers/rides/{rideId}/complete`
+
+## Dispatch Strategy
+
+1. Passenger requests ride.
+2. Candidate drivers are searched using H3 + Redis GEO.
+3. Offer is sent sequentially (unicast) with timeout.
+4. Driver accepts/rejects through WebSocket.
+5. On timeout/rejection, next candidate is attempted.
+
+## Progressive Search Radius
+
+Search expands until candidates are found or max threshold is reached:
+
+- H3 ring expansion first
+- Redis GEO radius expansion afterward (bounded max radius)
+
+## Security
+
+- JWT required and validated (signature, expiration, issuer/audience)
+- Role checks enforced per socket endpoint
+- Driver/passenger ID derived from token, never trusted from payload
+- Duplicate connections handled defensively
+- Input coordinates validated before processing
+
+## Troubleshooting
+
+- Connection rejected:
+  - Validate JWT and role
+  - Confirm user exists and is active
+- Driver appears offline while connected:
+  - Verify heartbeat interval
+  - Check network conditions and server logs
+- Location not updating:
+  - Validate payload format and coordinate ranges
+
+## Changelog
+
+### v1.0.0
+
+- Initial realtime location + heartbeat + operational state support
+
+### v2.0.0
+
+- Ride dispatch and offer response flows
+- Passenger notification channel
+- Ride status REST updates with distance validations
+
+### v2.1.0
+
+- Progressive driver search radius
+- Passenger location sharing to drivers during active rides
+
+## End of Document
 # GovMobile — WebSocket Architecture
 
 > Reference for all real-time WebSocket connections in the GovMobile application.

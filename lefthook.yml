@@ -1,0 +1,40 @@
+# Root Lefthook configuration.
+#
+# The .git directory lives at the workspace root, so Lefthook must be
+# configured here. Commands run per sub-project to keep checks consistent
+# across backend + storefront + admin panel.
+
+# Only print output on failure — keeps the terminal clean on success.
+output:
+  - failure
+
+pre-commit:
+  parallel: false
+  commands:
+    lint-backend:
+      root: "backend/"
+      run: pnpm biome check .
+    lint-frontend:
+      root: "frontend/"
+      run: pnpm lint
+    lint-admin-panel:
+      root: "admin-panel/"
+      run: pnpm lint
+    typecheck-backend:
+      root: "backend/"
+      run: pnpm turbo typecheck
+    test-backend:
+      root: "backend/"
+      run: pnpm turbo test -- --passWithNoTests
+
+commit-msg:
+  commands:
+    # scope-check runs here (not pre-commit) because the commit message file
+    # (.git/COMMIT_EDITMSG) is only written AFTER pre-commit hooks complete.
+    # Running it in commit-msg guarantees $1 points to the real message.
+    scope-check:
+      root: "backend/"
+      run: bash scripts/check-commit-scope.sh {1}
+    commitlint:
+      root: "backend/"
+      run: pnpm commitlint --edit {1}
